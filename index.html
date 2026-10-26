@@ -45,14 +45,19 @@
     padding:env(safe-area-inset-top) 16px calc(16px + env(safe-area-inset-bottom)) 16px}
   header{display:flex;align-items:center;justify-content:space-between;padding:16px 4px 0}
   /* Pill nav di pojok kanan atas, seperti screenshot user: tombol di dalam kapsul putih bergaris abu-abu.
-     Tombol 1 = timer, tombol 2 = halaman list time. Tombol improvement dihapus dulu.
+     Tombol 1 = timer, tombol 2 = halaman list time, tombol 3 = profile (baru, permintaan user).
      Yang aktif warnanya hitam dengan garis biru di bawahnya, seperti di screenshot. */
+  .method-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .method-row button{border:2px solid #e5e5ea;background:#f2f2f7;color:#000;border-radius:999px;padding:10px 16px;font:inherit;font-size:14px;font-weight:700}
+  .method-row button.on{background:#000;color:#fff;border-color:#000}
+  .profile-input{width:100%;border:2px solid #e5e5ea;border-radius:12px;padding:12px;font:inherit;font-size:15px;margin-top:8px}
   .pill-nav{position:absolute;top:12px;right:12px;z-index:20;display:flex;gap:2px;align-items:flex-start;
     background:#fff;border:2px solid #8e8e93;border-radius:999px;padding:6px 10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
   .pill-nav button{border:0;background:none;font-size:22px;line-height:1;padding:4px 8px;color:#8e8e93}
   .pill-nav button.on{color:#000}
   .pill-nav button.on::after{content:"";display:block;width:18px;height:4px;border-radius:2px;background:#3b82f6;margin:4px auto 0}
   .puzzle-top{display:flex;justify-content:center;padding:2px 0 0}
+
   .puzzle-top button{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:#000;padding:6px 2px}
   .puzzle-top button span{color:#8e8e93;font-size:12px}
   .session{display:flex;align-items:center;gap:7px;font-size:17px;font-weight:500;letter-spacing:-.01em}
@@ -63,13 +68,21 @@
   .view.on{display:flex}
   /* Spacer jadi jarak tetap, bukan flex yang mendorong kartu ke bawah layar.
      Revisi: diturunkan tiny bit lagi (sp2 100->106, sp3 100->110),
-     tapi tetap dijaga tidak sampai tenggelam di bawah layar. */
-  .sp1{flex:none;height:28px}.sp2{flex:none;height:106px}.sp3{flex:none;height:110px}
+     tapi tetap dijaga tidak sampai tenggelam di bawah layar.
+     Kompensasi area timer yang dilebarin (+40px): sp2/sp3 dikurangi 20px masing-masing,
+     jadi posisi kartu bawah tetap sama.
+     Kompensasi kedua (area timer 30->40px, +20px): sp2/sp3 dikurangi 10px lagi. */
+  .sp1{flex:none;height:28px}.sp2{flex:none;height:76px}.sp3{flex:none;height:80px}
   .scramble-box{text-align:center;padding:0 10px}
   #scramble{font-size:18px;line-height:1.6;font-weight:516;letter-spacing:.01em;color:#000}
   #scramble:active{opacity:.5}
+  /* Area start/stop dilebarin lagi (permintaan user: luas-in areanya):
+     area sekarang full-bleed sampai tepi layar (lebar = container + 32px padding app, margin -16px),
+     padding atas-bawah 30 -> 40px, jadi area ketuk/tahan start/stop jauh lebih luas,
+     tidak cuma pas di angka saja. */
   .timer-area{display:flex;flex-direction:column;align-items:center;justify-content:center;
-    touch-action:none;user-select:none;-webkit-user-select:none;padding:10px 0}
+    width:calc(100% + 32px);margin-left:-16px;margin-right:-16px;
+    touch-action:none;user-select:none;-webkit-user-select:none;padding:40px 16px}
   #time{font-size:56px;line-height:1;font-weight:716;letter-spacing:-.03em;
     font-variant-numeric:tabular-nums;margin:0;color:#000}
   .timer-area.running #time{font-size:70px}
@@ -118,12 +131,13 @@
     <div class="session"><span class="ic">▣</span> Default Session</div>
   </header>
 
-  <!-- Pill nav di pojok kanan atas: 1 timer, 2 halaman list time.
+  <!-- Pill nav di pojok kanan atas: 1 timer, 2 halaman list time, 3 profile.
        Tombol improvement dihapus dulu (permintaan user), inspection tetap nyala:
        ketuk sekali = inspection, lalu tahan sampai hijau = mulai. -->
   <div class="pill-nav">
     <button data-tab="timer" class="on" title="Timer" aria-label="Timer">⏱</button>
     <button data-tab="list" title="List time" aria-label="List time">☰</button>
+    <button data-tab="profile" title="Profile" aria-label="Profile">👤</button>
   </div>
 
   <!-- TAB TIMER: susunan persis screenshot -->
@@ -136,7 +150,7 @@
     <div class="sp2"></div>
     <div class="timer-area" id="timerArea">
       <p id="time" class="mono">0.00</p>
-      <p id="sub">Ketuk sekali untuk inspection, tahan untuk solve</p>
+      <p id="sub">Ketuk untuk inspection dulu, baru tahan untuk mulai</p>
     </div>
     <div class="insp-row" id="inspRow" style="display:none">
       <button id="btn-back-inspection">← Kembali</button>
@@ -182,12 +196,35 @@
     </div>
   </section>
 
+  <!-- TAB PROFILE -->
+  <section id="view-profile" class="view">
+    <div class="card2">
+      <h2>Profile</h2>
+      <p class="muted" id="profile-status">Belum login. Profil dan method tersimpan lokal dulu, dan akan tersinkron ke cloud kalau sudah login.</p>
+      <div class="actions">
+        <button id="btn-login" class="primary">Login dengan Google</button>
+        <button id="btn-logout" style="display:none">Logout</button>
+      </div>
+      <input id="profile-name" class="profile-input" type="text" placeholder="Nama kamu" autocomplete="name">
+      <p class="muted" style="margin-top:14px">Method yang kamu pakai, pilih satu:</p>
+      <div class="method-row" id="method-row">
+        <button data-method="CFOP">CFOP</button>
+        <button data-method="ZB">ZB</button>
+        <button data-method="ROUX">ROUX</button>
+        <button data-method="ZZ">ZZ</button>
+        <button data-method="KO">KO</button>
+      </div>
+      <p class="muted" id="method-status" style="margin-top:10px">Belum pilih method.</p>
+    </div>
+  </section>
+
 </div>
 
 <!-- Firebase cloud: SDK compat, supaya bisa dipakai langsung di file HTML tanpa build.
      Config di bawah adalah config web Firebase (bukan password, memang untuk kode client). -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 let puzzle = '3x3';
@@ -211,6 +248,16 @@ try {
     db = firebase.firestore();
   }
 } catch(e){ db = null; }
+/* Daftar kunci solve yang sudah dihapus, supaya cloud tidak mengembalikannya lagi saat dibuka.
+   Penyebab hapus tidak kehapus yang kedua: kalau hapus cloud gagal / belum sempat, cloudLoad
+   akan menambah lagi solve yang baru saja dihapus. Daftar ini mencegah itu. */
+let deletedKeys = [];
+try { deletedKeys = JSON.parse(localStorage.getItem('cube-timer-deleted-keys') || '[]'); } catch(e){ deletedKeys = []; }
+function markDeleted(s){
+  if(s.cloudId) deletedKeys.push('id:'+s.cloudId);
+  deletedKeys.push(s.at+'|'+s.ms+'|'+s.scramble);
+  try{ localStorage.setItem('cube-timer-deleted-keys', JSON.stringify(deletedKeys)); }catch(e){}
+}
 function cloudAdd(s){
   if(!db) return;
   try{ db.collection('solves').add({puzzle:s.puzzle, ms:s.ms, scramble:s.scramble, penalty:s.penalty||'', at:s.at})
@@ -231,6 +278,7 @@ function cloudLoad(){
     let changed = false;
     snap.forEach(doc=>{
       const d = doc.data(), key = d.at+'|'+d.ms+'|'+d.scramble;
+      if(deletedKeys.includes('id:'+doc.id) || deletedKeys.includes(key)) return;
       const ex = solves.find(x=>(x.at+'|'+x.ms+'|'+x.scramble)===key);
       if(!ex){ solves.push({puzzle:d.puzzle, ms:d.ms, scramble:d.scramble, penalty:d.penalty||'', at:d.at, cloudId:doc.id}); changed = true; }
       else if(!ex.cloudId) ex.cloudId = doc.id;
@@ -241,7 +289,13 @@ function cloudLoad(){
 let state = 'idle', holdTimer = null, yellowTimer = null, holdFromInspection = false, raf = null, startAt = 0, inspAt = 0, inspTimer = null, wakeLock = null;
 let currentScramble = '';
 
-/* ---------- Scramble ---------- */
+/* ---------- Scramble: generator-nya CubeTime ----------
+   CubeTime sendiri tidak punya generator scramble di kode Swift-nya: README-nya bilang
+   CubeTime pakai library scrambler resmi TNoodle (WCA, transpiled tnoodle-lib-objc).
+   TNoodle itu Java/ObjC, tidak bisa jalan langsung di web Android/Vercel, jadi port web ini
+   pakai aturan yang sama dengan TNoodle/CubeTime: scramble random-state style, panjang
+   3x3 = 20 langkah, 2x2 = 11 langkah, set huruf U D R L F B untuk 3x3 dan U R F untuk 2x2,
+   tanpa pengulangan face yang sama berturut-turut. */
 const FACES = { '3x3':['U','D','R','L','F','B'], '2x2':['U','R','F'] };
 const LENS = { '3x3':20, '2x2':11 };
 function newScramble(){
@@ -347,6 +401,29 @@ function fmt(ms){
   if(ms==null || !isFinite(ms)) return '-';
   return (ms/1000).toFixed(2);
 }
+/* ---------- Profile: login + pilih method ----------
+   Method: CFOP, ZB, ROUX, ZZ, KO — bisa dipilih, tersimpan lokal dan (kalau login)
+   ke Firestore. Login pakai Firebase Auth Google. Catatan: provider Google harus
+   diaktifkan dulu di Firebase Console > Authentication > Sign-in method, kalau belum
+   aktif tombol login akan menampilkan pesan error-nya dan profil lokal tetap bisa dipakai. */
+let profile = { name:'', method:'' };
+try { profile = Object.assign({name:'', method:''}, JSON.parse(localStorage.getItem('mobile-timer-profile') || '{}')); } catch(e){ profile = {name:'', method:''}; }
+function saveProfile(){
+  try{ localStorage.setItem('mobile-timer-profile', JSON.stringify(profile)); }catch(e){}
+  renderProfile();
+  try{
+    if(db && window.firebase && firebase.auth && firebase.auth().currentUser){
+      db.collection('profiles').doc(firebase.auth().currentUser.uid).set(profile, {merge:true}).catch(()=>{});
+    }
+  }catch(e){}
+}
+function renderProfile(){
+  if($('profile-name') && document.activeElement !== $('profile-name')) $('profile-name').value = profile.name || '';
+  document.querySelectorAll('#method-row button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.method === profile.method);
+  });
+  if($('method-status')) $('method-status').textContent = profile.method ? 'Method kamu: ' + profile.method : 'Belum pilih method.';
+}
 function val(s){ return s.penalty==='DNF' ? Infinity : s.ms + (s.penalty==='+2' ? 2000 : 0); }
 function avg(arr){
   if(arr.length<3) return null;
@@ -370,12 +447,24 @@ function render(){
   const row = (s)=>{
     const gi = solves.indexOf(s);
     return `<div class="row"><div><div class="t mono">${s.penalty==='DNF'?'DNF':fmt(val(s))}${s.penalty==='+2'?' (+2)':''}</div><div class="s">#${ok.length-ok.indexOf(s)} · ${s.scramble.slice(0,40)}${s.scramble.length>40?'…':''}</div></div><div>
-    <button onclick="pen(${gi},'+2')">+2</button><button onclick="pen(${gi},'DNF')">DNF</button><button class="danger" onclick="del(${gi})">Hapus</button></div></div>`;
+    <button onclick="pen(${gi},'+2')">+2</button><button onclick="pen(${gi},'DNF')">DNF</button><button class="danger" onclick="del(${gi})">${s._confirmDelete ? 'Yakin?' : 'Hapus'}</button></div></div>`;
   };
   $('all').innerHTML = [...ok].reverse().map(row).join('') || '<div class="empty">Belum ada waktu.</div>';
 }
 window.pen = (i,p)=>{ const s = solves[i]; s.penalty = s.penalty===p ? '' : p; cloudUpdate(s); save(); };
-window.del = (i)=>{ if(confirm('Hapus waktu ini?')){ cloudDelete(solves[i]); solves.splice(i,1); save(); } };
+/* Hapus time: penyebab utama tidak kehapus adalah confirm() browser yang terblokir di preview HP,
+   jadi ketuk Hapus tidak pernah sampai ke splice. Sekarang konfirmasi pakai 2 ketuk di dalam app:
+   ketuk 1 = tombol berubah jadi "Yakin?" (ini permission-nya, tetap ditanya dulu),
+   ketuk 2 = benar-benar dihapus, lokal + cloud, dan tidak akan balik lagi dari cloud. */
+window.del = (i)=>{
+  const s = solves[i]; if(!s) return;
+  if(!s._confirmDelete){
+    s._confirmDelete = true; render();
+    setTimeout(()=>{ if(solves.includes(s) && s._confirmDelete){ delete s._confirmDelete; render(); } }, 3000);
+    return;
+  }
+  markDeleted(s); cloudDelete(s); solves.splice(i,1); save();
+};
 
 /* ---------- Timer: tahan – lepas – ketuk ---------- */
 function tick(){
@@ -406,35 +495,66 @@ function setState(s, sub){
   if(sub!==undefined) $('sub').textContent = sub;
   updateInspUI();
 }
+let pendingPenalty = '';
 function cancelInspection(){
   clearInterval(inspTimer);
   holdFromInspection = false;
   $('time').textContent = '0.00';
-  setState('idle','Ketuk sekali untuk inspection, tahan untuk solve');
+  setState('idle','Ketuk untuk inspection dulu, baru tahan untuk mulai');
 }
 function startInspection(){
   setState('inspection','Inspeksi! Tahan sampai hijau untuk mulai, atau Kembali untuk batal');
   inspAt = performance.now(); clearInterval(inspTimer);
   inspTimer = setInterval(()=>{
-    const left = 15 - Math.floor((performance.now()-inspAt)/1000);
-    if(left<=0){ clearInterval(inspTimer); startSolve(); }
-    else $('time').textContent = left;
+    const elapsed = Math.floor((performance.now()-inspAt)/1000);
+    if(elapsed >= 17){
+      // WCA: inspection 17 detik ke atas = DNF, solve langsung DNF tanpa jalan timer.
+      clearInterval(inspTimer); holdFromInspection = false;
+      const ns = { puzzle, ms:0, scramble: currentScramble, penalty:'DNF', at: Date.now() };
+      solves.push(ns); cloudAdd(ns); save(); newScramble();
+      $('time').textContent = 'DNF';
+      setState('idle','DNF - inspection lewat 17 detik. Ketuk untuk inspection lagi');
+      vibrate(30);
+      return;
+    }
+    if(elapsed <= 15){
+      $('time').textContent = 15 - elapsed;
+    } else {
+      // elapsed == 16: WCA +2 kalau mulai sekarang.
+      $('time').textContent = elapsed;
+      $('sub').textContent = 'Inspeksi 16 detik = +2 kalau mulai sekarang';
+    }
   },100);
 }
 function startSolve(){
+  // Start HANYA boleh dari inspection (permintaan user 12:24).
+  // Penalti inspection: <=15 detik = tanpa penalti, 16 detik = +2, >=17 = DNF (tidak jalan timer).
+  const wasInspection = holdFromInspection;
+  let inspElapsed = 0;
+  if(wasInspection) inspElapsed = Math.floor((performance.now()-inspAt)/1000);
   clearInterval(inspTimer);
   holdFromInspection = false;
+  if(wasInspection && inspElapsed >= 17){
+    const ns = { puzzle, ms:0, scramble: currentScramble, penalty:'DNF', at: Date.now() };
+    solves.push(ns); cloudAdd(ns); save(); newScramble();
+    $('time').textContent = 'DNF';
+    setState('idle','DNF - inspection lewat 17 detik. Ketuk untuk inspection lagi');
+    vibrate(30);
+    return;
+  }
+  pendingPenalty = (wasInspection && inspElapsed === 16) ? '+2' : '';
   setState('running','Ketuk untuk berhenti');
   startAt = performance.now(); lock(); vibrate(20); cancelAnimationFrame(raf); tick();
 }
 function stopSolve(){
   cancelAnimationFrame(raf); unlock();
   const ms = Math.round(performance.now()-startAt);
-  const ns = { puzzle, ms, scramble: currentScramble, penalty:'', at: Date.now() };
+  const ns = { puzzle, ms, scramble: currentScramble, penalty:pendingPenalty, at: Date.now() };
+  pendingPenalty = '';
   solves.push(ns); cloudAdd(ns);
   save(); newScramble();
-  $('time').textContent = fmt(ms);
-  setState('idle','Tersimpan! Ketuk sekali untuk inspection, tahan untuk solve lagi');
+  $('time').textContent = fmt(val(ns));
+  setState('idle','Tersimpan! Ketuk untuk inspection dulu, baru tahan untuk mulai lagi');
   vibrate(30);
 }
 const area = $('timerArea');
@@ -461,14 +581,17 @@ area.addEventListener('pointerdown', e=>{
 area.addEventListener('pointerup', ()=>{
   clearTimeout(holdTimer); clearTimeout(yellowTimer);
   if(state==='ready'){
+    // Inspection WAJIB: tahan lama tanpa inspect TIDAK bisa start.
+    // Tahan dari idle (bukan dari inspection) = masuk inspection dulu, bukan langsung solve.
+    // Tahan dari inspection = baru startSolve (dengan penalti inspection kalau 16 detik = +2, >=17 = DNF).
     if(holdFromInspection){ holdFromInspection = false; startSolve(); }
-    else $('inspection').checked ? startInspection() : startSolve();
+    else startInspection();
   }
   // Lepas sebelum hijau saat inspection = tetap inspection, countdown lanjut, TIDAK start.
   else if(state==='holding' && holdFromInspection){
     holdFromInspection = false;
-    const left = 15 - Math.floor((performance.now()-inspAt)/1000);
-    if(left>0) $('time').textContent = left;
+    const elapsed = Math.floor((performance.now()-inspAt)/1000);
+    $('time').textContent = elapsed <= 15 ? 15 - elapsed : elapsed;
     setState('inspection','Inspeksi! Tahan sampai hijau untuk mulai, atau Kembali untuk batal');
   }
   // Ketuk sekali (lepas sebelum hijau) dari idle = masuk inspection, sesuai permintaan user.
@@ -477,13 +600,52 @@ area.addEventListener('pointerup', ()=>{
 area.addEventListener('pointercancel', ()=>{
   clearTimeout(holdTimer); clearTimeout(yellowTimer);
   if(state==='holding' && holdFromInspection){ holdFromInspection = false; setState('inspection','Inspeksi! Tahan sampai hijau untuk mulai, atau Kembali untuk batal'); }
-  else if(state==='holding'||state==='ready') setState('idle','Ketuk sekali untuk inspection, tahan untuk solve');
+  else if(state==='holding'||state==='ready') setState('idle','Ketuk untuk inspection dulu, baru tahan untuk mulai');
 });
 $('btn-back-inspection').addEventListener('click', (e)=>{ e.stopPropagation(); if(state==='inspection') cancelInspection(); });
 $('scramble').addEventListener('click', newScramble);
 $('btn-scramble2')?.addEventListener('click', newScramble);
+$('profile-name')?.addEventListener('input', e=>{ profile.name = e.target.value; saveProfile(); });
+document.querySelectorAll('#method-row button').forEach(b=>b.addEventListener('click', ()=>{
+  profile.method = b.dataset.method; saveProfile();
+}));
+$('btn-login')?.addEventListener('click', async ()=>{
+  try{
+    if(!window.firebase || !firebase.auth) throw new Error('Firebase Auth tidak tersedia di browser ini.');
+    await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  }catch(err){
+    $('profile-status').textContent = 'Login gagal: ' + (err.message || err) + ' — profil lokal tetap bisa dipakai, dan Google harus diaktifkan dulu di Firebase Console > Authentication.';
+  }
+});
+$('btn-logout')?.addEventListener('click', async ()=>{
+  try{ if(window.firebase && firebase.auth) await firebase.auth().signOut(); }catch(e){}
+});
+try{
+  if(window.firebase && firebase.auth){
+    firebase.auth().onAuthStateChanged(user=>{
+      if(user){
+        $('profile-status').textContent = 'Login sebagai ' + (user.displayName || user.email || 'pengguna Google') + '.';
+        $('btn-login').style.display = 'none'; $('btn-logout').style.display = '';
+        if(!profile.name && user.displayName){ profile.name = user.displayName; saveProfile(); }
+      } else {
+        $('profile-status').textContent = 'Belum login. Profil dan method tersimpan lokal dulu, dan akan tersinkron ke cloud kalau sudah login.';
+        $('btn-login').style.display = ''; $('btn-logout').style.display = 'none';
+      }
+      renderProfile();
+    });
+  }
+}catch(e){}
+renderProfile();
 $('btn-clear')?.addEventListener('click', ()=>{
-  if(confirm('Hapus semua waktu sesi '+puzzle+'?')){ solves.filter(s=>s.puzzle===puzzle).forEach(cloudDelete); solves = solves.filter(s=>s.puzzle!==puzzle); save(); }
+  const b = $('btn-clear');
+  if(b.textContent !== 'Yakin hapus sesi?'){
+    b.textContent = 'Yakin hapus sesi?';
+    setTimeout(()=>{ if(b.textContent==='Yakin hapus sesi?') b.textContent='Hapus sesi'; }, 3000);
+    return;
+  }
+  b.textContent = 'Hapus sesi';
+  solves.filter(s=>s.puzzle===puzzle).forEach(s=>{ markDeleted(s); cloudDelete(s); });
+  solves = solves.filter(s=>s.puzzle!==puzzle); save();
 });
 $('puzzleBtn').addEventListener('click', ()=>{
   puzzle = puzzle==='3x3' ? '2x2' : '3x3';
