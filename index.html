@@ -139,13 +139,49 @@
   .draw-box svg{display:block;margin:0 auto;max-width:100%;height:auto}
   .empty{color:#8e8e93;font-size:13px;text-align:center;padding:14px 0}
   .actions{display:flex;gap:8px;margin-top:12px}
-  .actions button{flex:1;border:0;border-radius:14px;padding:12px;font:inherit;font-size:14px;font-weight:700;background:#fff;color:#000;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+  /* Tombol penting SELALU invert mode (permintaan user 15:34): light mode =
+     tombol hitam, dark mode = tombol putih. Jadi tombol aksi utama di sini
+     dibuat hitam di light mode (bukan cuma yang primary), supaya di dark
+     mode tinggal dibalik jadi putih. */
+  .actions button{flex:1;border:0;border-radius:14px;padding:12px;font:inherit;font-size:14px;font-weight:700;background:#000;color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.07)}
   .actions button.primary{background:#000;color:#fff}
 
   .muted{color:#8e8e93;font-size:13px;line-height:1.5}
   .big{font-size:32px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
   .toggle{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid #f2f2f7;font-size:14px;font-weight:600}
   .toggle input{width:48px;height:28px;accent-color:#30d158}
+  /* Dark mode v4/v5 (koreksi user 15:31 + 15:34, menggantikan charcoal/indigo v3):
+     background SELAYAR-LAYARNYA HITAM, tombol penting SELALU invert mode.
+     Kartu hitam di atas background hitam dibedakan tipis pakai border
+     #2c2c2e, supaya bentuknya tetap kelihatan. Tombol aksi utama putih di
+     dark (hitam di light). Tombol method: yang TIDAK terpilih hitam di dark,
+     yang TERPILIH putih di dark — jadi yang penting (terpilih) selalu invert
+     mode, bukan sebaliknya. Kartu draw scramble ikut hitam mengikuti
+     background semua hitam; stiker kubusnya tetap warna WCA terang. */
+  body.dark{background:#000;color:#fff;color-scheme:dark}
+  /* BUG yang bikin atas masih putih di screenshot 15:36: container .app punya
+     background #f2f2f7 sendiri, jadi body.dark saja tidak cukup — .app juga
+     harus hitam, kalau tidak teks putih (scramble, timer, Default Session)
+     jadi tidak kelihatan di atas background terang. */
+  body.dark .app{background:#000}
+  body.dark .card, body.dark .card2, body.dark .pill-nav{background:#000;color:#fff;border:1px solid #2c2c2e;box-shadow:none}
+  body.dark #time, body.dark #scramble, body.dark .stats-card .lab, body.dark .card2 h2, body.dark #puzzleBtn{color:#fff}
+  body.dark .pill-nav button{color:#8e8e93}
+  body.dark .pill-nav button.on{color:#fff}
+  /* Tombol PUTIH di dark mode (tombol aksi utama + tombol baris, invert dari
+     light mode). Tombol method: tidak terpilih = hitam, terpilih = putih,
+     supaya yang terpilih selalu invert mode. */
+  body.dark .actions button, body.dark .row button, body.dark #btn-back-inspection{background:#fff;color:#000;border-color:#fff}
+  body.dark .row button.danger{color:#ff453a}
+  body.dark .method-row button{background:#000;color:#fff;border-color:#2c2c2e}
+  body.dark .method-row button.on{background:#fff;color:#000;border-color:#fff}
+  body.dark .profile-input{background:#000;color:#fff;border-color:#2c2c2e}
+  body.dark .profile-input::placeholder{color:#8e8e93}
+  body.dark .row{border-top-color:#2c2c2e}
+  body.dark .stats-card .cell:nth-child(-n+4){border-bottom-color:#2c2c2e}
+  body.dark .stats-card .cell:nth-child(odd){border-right-color:#2c2c2e}
+  body.dark .toggle{border-top-color:#2c2c2e}
+  body.dark .net-card, body.dark .draw-box{background:#000}
 
 </style>
 </head>
@@ -241,6 +277,13 @@
         <button data-method="KO">KO</button>
       </div>
       <p class="muted" id="method-status" style="margin-top:10px">Belum pilih method.</p>
+    </div>
+    <div class="card2">
+      <h2>Tampilan</h2>
+      <div class="actions">
+        <button id="darkmode-btn" style="font-size:28px" title="Dark mode">🌙</button>
+      </div>
+      <p class="muted">Tombolnya cuma tanda malam/pagi saja: kalau lagi light mode, logonya 🌙 (ketuk untuk dark mode); kalau lagi dark mode, logonya ☀️ (ketuk untuk light mode). Dark mode: background semua hitam, tombol putih. Berlaku untuk seluruh aplikasi, tersimpan di HP ini.</p>
     </div>
     <div class="card2" id="card-auth-email">
       <h2>Daftar / Login dengan Password</h2>
@@ -640,7 +683,17 @@ function stopSolve(){
   vibrate(30);
 }
 const area = $('timerArea');
-area.addEventListener('pointerdown', e=>{
+/* Full-screen start/stop (permintaan user 15:10): setelah inspection dimulai,
+   SELAYAR-LAYARNYA bisa dipakai untuk start/stop timer, bukan cuma area timer.
+   Caranya: handler timer yang tadinya cuma di area timer dijadikan fungsi
+   bernama, lalu dipasang juga di document. Ketuk di area timer tetap jalan
+   lewat handler area (ditandai _timerHandled, supaya handler document tidak
+   jalan dua kali). Ketuk di luar area timer: kalau state masih idle, diabaikan
+   (supaya tombol puzzle, scramble, pill nav, dll. tetap bisa dipakai di idle);
+   kalau state sudah inspection/holding/ready/running, handler document yang
+   jalan, jadi ketuk/tahan di mana saja = start/stop. Tombol ← Kembali
+   dikecualikan, supaya inspection tetap bisa dibatalkan. */
+function handleTimerDown(e){
   e.preventDefault();
   if(state==='running'){ stopSolve(); return; }
   // Selama inspection, ketuk TIDAK langsung start (permintaan user 11:32).
@@ -659,8 +712,15 @@ area.addEventListener('pointerdown', e=>{
   // Merah di awal tahan, kuning di tengah (0,275 detik), hijau di 0,55 detik = siap lepas.
   yellowTimer = setTimeout(()=>{ if(state==='holding') $('timerArea').classList.add('yellow'); }, 275);
   holdTimer = setTimeout(()=>{ if(state==='holding') setState('ready','Lepas untuk jalan!'); vibrate(15); }, 550);
+}
+area.addEventListener('pointerdown', e=>{ e._timerHandled = true; handleTimerDown(e); });
+document.addEventListener('pointerdown', e=>{
+  if(e._timerHandled) return;
+  if(e.target.closest && e.target.closest('#btn-back-inspection')) return;
+  if(state==='idle') return;
+  handleTimerDown(e);
 });
-area.addEventListener('pointerup', ()=>{
+function handleTimerUp(){
   clearTimeout(holdTimer); clearTimeout(yellowTimer);
   if(state==='ready'){
     // Inspection WAJIB: tahan lama tanpa inspect TIDAK bisa start.
@@ -678,11 +738,21 @@ area.addEventListener('pointerup', ()=>{
   }
   // Ketuk sekali (lepas sebelum hijau) dari idle = masuk inspection, sesuai permintaan user.
   else if(state==='holding'){ startInspection(); }
+}
+area.addEventListener('pointerup', e=>{ e._timerHandled = true; handleTimerUp(); });
+document.addEventListener('pointerup', e=>{
+  if(e._timerHandled) return;
+  if(state==='holding' || state==='ready') handleTimerUp();
 });
-area.addEventListener('pointercancel', ()=>{
+function handleTimerCancel(){
   clearTimeout(holdTimer); clearTimeout(yellowTimer);
   if(state==='holding' && holdFromInspection){ holdFromInspection = false; setState('inspection','Inspeksi! Tahan sampai hijau untuk mulai, atau Kembali untuk batal'); }
   else if(state==='holding'||state==='ready') setState('idle','Ketuk untuk inspection dulu, baru tahan untuk mulai');
+}
+area.addEventListener('pointercancel', e=>{ e._timerHandled = true; handleTimerCancel(); });
+document.addEventListener('pointercancel', e=>{
+  if(e._timerHandled) return;
+  if(state==='holding' || state==='ready') handleTimerCancel();
 });
 $('btn-back-inspection').addEventListener('click', (e)=>{ e.stopPropagation(); if(state==='inspection') cancelInspection(); });
 $('scramble').addEventListener('click', newScramble);
@@ -830,6 +900,20 @@ document.querySelectorAll('.pill-nav button').forEach(b=>b.addEventListener('cli
 }));
 document.addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); area.dispatchEvent(new PointerEvent('pointerdown')); } });
 document.addEventListener('keyup', e=>{ if(e.code==='Space'){ e.preventDefault(); area.dispatchEvent(new PointerEvent('pointerup')); } });
+/* Dark mode v2: tombol di Profile cuma ikon malam/pagi saja, bukan checkbox.
+   Light mode -> logonya 🌙, dark mode -> logonya ☀️. Tersimpan lokal
+   (mobile-timer-darkmode), berlaku untuk semua tab, bukan cuma Profile. */
+function applyDarkIcon(){
+  const b = $('darkmode-btn'); if(b) b.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+}
+try{ if(localStorage.getItem('mobile-timer-darkmode')==='1'){ document.body.classList.add('dark'); } }catch(e){}
+applyDarkIcon();
+$('darkmode-btn')?.addEventListener('click', ()=>{
+  const on = !document.body.classList.contains('dark');
+  document.body.classList.toggle('dark', on);
+  try{ localStorage.setItem('mobile-timer-darkmode', on ? '1' : '0'); }catch(err){}
+  applyDarkIcon();
+});
 newScramble(); render(); cloudLoad();
 </script>
 </body>
