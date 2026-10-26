@@ -72,8 +72,11 @@
      tapi tetap dijaga tidak sampai tenggelam di bawah layar.
      Kompensasi area timer yang dilebarin (+40px): sp2/sp3 dikurangi 20px masing-masing,
      jadi posisi kartu bawah tetap sama.
-     Kompensasi kedua (area timer 30->40px, +20px): sp2/sp3 dikurangi 10px lagi. */
-  .sp1{flex:none;height:28px}.sp2{flex:none;height:76px}.sp3{flex:none;height:80px}
+     Kompensasi kedua (area timer 30->40px, +20px): sp2/sp3 dikurangi 10px lagi.
+     Revisi 13:26: statistik jadi 6 kotak (AO1000 + WORST), kartunya lebih tinggi,
+     jadi sp3 dikurangi sedikit (80->60) supaya statistik naik dan tidak tenggelam.
+     Revisi 13:27: user minta lagi, sp3 dikurangi lagi sedikit (60->40). */
+  .sp1{flex:none;height:28px}.sp2{flex:none;height:76px}.sp3{flex:none;height:40px}
   .scramble-box{text-align:center;padding:0 10px}
   #scramble{font-size:18px;line-height:1.6;font-weight:516;letter-spacing:.01em;color:#000}
   #scramble:active{opacity:.5}
@@ -100,7 +103,7 @@
   .net-card svg{display:block;max-width:100%;height:auto}
   .stats-card{display:grid;grid-template-columns:1fr 1fr;gap:0}
   .stats-card .cell{padding:8px 6px;text-align:center}
-  .stats-card .cell:nth-child(1),.stats-card .cell:nth-child(2){border-bottom:1px solid #f2f2f7}
+  .stats-card .cell:nth-child(-n+4){border-bottom:1px solid #f2f2f7}
   .stats-card .cell:nth-child(odd){border-right:1px solid #f2f2f7}
   .stats-card .lab{font-size:13px;letter-spacing:.02em;color:#000;font-weight:500}
   .stats-card .val{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
@@ -163,7 +166,9 @@
         <div class="cell"><div class="lab">AO5</div><div class="val mono" id="st-ao5">-</div></div>
         <div class="cell"><div class="lab">AO12</div><div class="val mono" id="st-ao12">-</div></div>
         <div class="cell"><div class="lab">AO100</div><div class="val mono" id="st-ao100">-</div></div>
+        <div class="cell"><div class="lab">AO1000</div><div class="val mono" id="st-ao1000">-</div></div>
         <div class="cell"><div class="lab">MEAN</div><div class="val mono" id="st-mean">-</div></div>
+        <div class="cell"><div class="lab">WORST</div><div class="val mono" id="st-worst">-</div></div>
       </div>
     </div>
   </section>
@@ -216,6 +221,16 @@
         <button data-method="KO">KO</button>
       </div>
       <p class="muted" id="method-status" style="margin-top:10px">Belum pilih method.</p>
+    </div>
+    <div class="card2">
+      <h2>Import / Export Time</h2>
+      <p class="muted">Export menyimpan semua waktu kamu ke file JSON, supaya bisa dicadangkan atau dipindah ke HP lain. Import membaca file JSON hasil export timer ini, waktu yang sama tidak akan diduplikasi.</p>
+      <div class="actions">
+        <button id="btn-export" class="primary">Export Time</button>
+        <button id="btn-import">Import Time</button>
+        <input type="file" id="file-import" accept=".json,application/json" style="display:none">
+      </div>
+      <p class="muted" id="io-status" style="margin-top:10px">Belum ada import/export.</p>
     </div>
   </section>
 
@@ -440,10 +455,12 @@ function render(){
   $('st-ao5').textContent = fmt(avg(ok.slice(-5)));
   $('st-ao12').textContent = fmt(avg(ok.slice(-12)));
   $('st-ao100').textContent = fmt(avg(ok.slice(-100)));
+  $('st-ao1000').textContent = fmt(avg(ok.slice(-1000)));
   $('st-mean').textContent = vals.length ? fmt(vals.reduce((a,b)=>a+b,0)/vals.length) : '-';
   $('st-pb').textContent = vals.length ? fmt(Math.min(...vals)) : '-';
+  $('st-worst').textContent = vals.length ? fmt(Math.max(...vals)) : '-';
   $('st-big').textContent = ok.length ? (fmt(avg(ok.slice(-5)))!=='-' ? fmt(avg(ok.slice(-5))) : fmt(vals[vals.length-1])) : '-';
-  $('st-detail').textContent = ok.length + ' solve di sesi ' + puzzle + '.';
+  $('st-detail').textContent = ok.length + ' solve di sesi ' + puzzle + '. AO1000: ' + fmt(avg(ok.slice(-1000))) + ' · Worst: ' + (vals.length ? fmt(Math.max(...vals)) : '-') + ' · PB: ' + (vals.length ? fmt(Math.min(...vals)) : '-') + '.';
   $('count').textContent = ok.length;
   const row = (s)=>{
     const gi = solves.indexOf(s);
@@ -637,6 +654,52 @@ try{
   }
 }catch(e){}
 renderProfile();
+/* ---------- Import / Export Time (di Profile) ----------
+   Export: semua solve jadi satu file JSON, bisa dicadangkan / dipindah HP.
+   Import: baca file JSON hasil export timer ini (array, atau {solves:[...]}),
+   waktu yang sama tidak diduplikasi, dan waktu yang diimpor bisa mengembalikan
+   waktu yang sempat dihapus (kuncinya dikeluarkan dari daftar deleted-keys). */
+function solveKey(s){ return (s.puzzle||'')+'|'+(s.at||'')+'|'+s.ms+'|'+(s.scramble||''); }
+$('btn-export')?.addEventListener('click', ()=>{
+  try{
+    const data = { app:'mobile timer', exportedAt: new Date().toISOString(), solves: solves };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'mobile-timer-times-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    $('io-status').textContent = solves.length + ' time diekspor ke file JSON.';
+  }catch(e){ $('io-status').textContent = 'Export gagal: ' + (e.message || e); }
+});
+$('btn-import')?.addEventListener('click', ()=>$('file-import')?.click());
+$('file-import')?.addEventListener('change', e=>{
+  const file = e.target.files && e.target.files[0]; e.target.value = '';
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.solves) ? data.solves : null);
+      if(!list) throw new Error('File bukan hasil export timer ini.');
+      const existing = new Set(solves.map(solveKey));
+      let added = 0, skipped = 0;
+      list.forEach(s=>{
+        if(!s || typeof s.ms !== 'number' || !s.scramble) { skipped++; return; }
+        const item = { puzzle: s.puzzle || puzzle, ms: s.ms, scramble: s.scramble, penalty: s.penalty || '', at: s.at || Date.now() };
+        const k = solveKey(item);
+        if(existing.has(k)) { skipped++; return; }
+        existing.add(k); solves.push(item); added++;
+        const dk = item.at+'|'+item.ms+'|'+item.scramble;
+        deletedKeys = deletedKeys.filter(x=>x!==dk);
+        try{ localStorage.setItem('cube-timer-deleted-keys', JSON.stringify(deletedKeys)); }catch(err){}
+      });
+      save();
+      $('io-status').textContent = added + ' time baru diimpor, ' + skipped + ' dilewati (duplikat / tidak valid). Total sekarang ' + solves.length + ' time.';
+    }catch(err){ $('io-status').textContent = 'Import gagal: ' + (err.message || err); }
+  };
+  reader.readAsText(file);
+});
 $('btn-clear')?.addEventListener('click', ()=>{
   const b = $('btn-clear');
   if(b.textContent !== 'Yakin hapus sesi?'){
