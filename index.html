@@ -38,10 +38,14 @@
   .mono{font-family:"Recursive",ui-monospace,Menlo,Consolas,monospace;font-variation-settings:"CASL" 0,"CRSV" 0}
   #time, .stats-card .val, .row .t, .big{font-family:"Recursive",ui-monospace,Menlo,Consolas,monospace;font-variation-settings:"CASL" 0,"CRSV" 0;font-variant-numeric:tabular-nums}
   /* KHUSUS HP: kolom selebar HP, di tengah kalau dibuka di layar besar */
-  /* Fix draw scramble tenggelam: app TIDAK lagi dipaksa setinggi layar (100dvh),
-     karena di viewer HP itu bikin kartu bawah terdorong ke bawah dan terpotong toolbar.
-     Konten sekarang setinggi isinya saja, jadi kartu bawah selalu kelihatan penuh. */
-  .app{max-width:430px;margin:0 auto;background:#f2f2f7;
+  /* Revisi 15:48: user minta statistik sampai bawah layar — app sekarang
+     min-height 100dvh (bukan height paksa, jadi kalau konten lebih tinggi
+     dari layar, app tetap bisa memanjang, kartu tidak terpotong paksa) dan
+     .bottom-row pakai margin-top:auto, jadi baris bawah (net + statistik)
+     terdorong sampai bawah layar. Sebelumnya app sengaja tidak dipaksa
+     setinggi layar supaya kartu tidak tenggelam di viewer HP, tapi permintaan
+     terbaru ini memang minta kartu bawah sampai bawah. */
+  .app{max-width:430px;margin:0 auto;background:#f2f2f7;min-height:100dvh;
     display:flex;flex-direction:column;position:relative;
     padding:env(safe-area-inset-top) 16px calc(16px + env(safe-area-inset-bottom)) 16px}
   header{display:flex;align-items:center;justify-content:space-between;padding:16px 4px 0}
@@ -113,7 +117,7 @@
   .insp-row{display:flex;justify-content:center;gap:8px;padding:4px 0 2px;min-height:44px}
   .insp-row button{border:0;border-radius:999px;padding:10px 18px;font:inherit;font-size:14px;font-weight:700}
   #btn-back-inspection{background:#000;color:#fff}
-  .bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch}
+  .bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:stretch;margin-top:auto}
   .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:12px;min-height:120px}
   .net-card{display:flex;align-items:center;justify-content:center}
   .net-card svg{display:block;max-width:100%;height:auto}
@@ -159,6 +163,11 @@
      mode, bukan sebaliknya. Kartu draw scramble ikut hitam mengikuti
      background semua hitam; stiker kubusnya tetap warna WCA terang. */
   body.dark{background:#000;color:#fff;color-scheme:dark}
+  /* Dark sampai bawah di halaman yang kontennya pendek (list/profile):
+     html sendiri punya background #f2f2f7 dari aturan html,body, jadi kalau
+     .app/body lebih pendek dari layar, area di bawahnya tetap putih di dark
+     mode. Dengan class dark juga di <html>, area itu ikut hitam. */
+  html.dark{background:#000}
   /* BUG yang bikin atas masih putih di screenshot 15:36: container .app punya
      background #f2f2f7 sendiri, jadi body.dark saja tidak cukup — .app juga
      harus hitam, kalau tidak teks putih (scramble, timer, Default Session)
@@ -906,11 +915,15 @@ document.addEventListener('keyup', e=>{ if(e.code==='Space'){ e.preventDefault()
 function applyDarkIcon(){
   const b = $('darkmode-btn'); if(b) b.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
 }
-try{ if(localStorage.getItem('mobile-timer-darkmode')==='1'){ document.body.classList.add('dark'); } }catch(e){}
+function setDark(on){
+  document.body.classList.toggle('dark', on);
+  document.documentElement.classList.toggle('dark', on);
+}
+try{ if(localStorage.getItem('mobile-timer-darkmode')==='1'){ setDark(true); } }catch(e){}
 applyDarkIcon();
 $('darkmode-btn')?.addEventListener('click', ()=>{
   const on = !document.body.classList.contains('dark');
-  document.body.classList.toggle('dark', on);
+  setDark(on);
   try{ localStorage.setItem('mobile-timer-darkmode', on ? '1' : '0'); }catch(err){}
   applyDarkIcon();
 });
