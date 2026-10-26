@@ -206,9 +206,9 @@
   <section id="view-profile" class="view">
     <div class="card2">
       <h2>Profile</h2>
-      <p class="muted" id="profile-status">Belum login. Profil dan method tersimpan lokal dulu, dan akan tersinkron ke cloud kalau sudah login.</p>
+      <p class="muted" id="profile-status">Belum login. Siapa pun bisa daftar akun baru: ketuk tombol di bawah, pilih akun Google, akun baru otomatis terdaftar. Profil dan method tersimpan lokal dulu, dan akan tersinkron ke cloud kalau sudah login.</p>
       <div class="actions">
-        <button id="btn-login" class="primary">Login dengan Google</button>
+        <button id="btn-login" class="primary">Login / Daftar dengan Google</button>
         <button id="btn-logout" style="display:none">Logout</button>
       </div>
       <input id="profile-name" class="profile-input" type="text" placeholder="Nama kamu" autocomplete="name">
@@ -654,7 +654,7 @@ try{
         $('btn-login').style.display = 'none'; $('btn-logout').style.display = '';
         if(!profile.name && user.displayName){ profile.name = user.displayName; saveProfile(); }
       } else {
-        $('profile-status').textContent = 'Belum login. Profil dan method tersimpan lokal dulu, dan akan tersinkron ke cloud kalau sudah login.';
+        $('profile-status').textContent = 'Belum login. Siapa pun bisa daftar akun baru: ketuk Login / Daftar dengan Google, pilih akun Google, akun baru otomatis terdaftar.';
         $('btn-login').style.display = ''; $('btn-logout').style.display = 'none';
       }
       renderProfile();
