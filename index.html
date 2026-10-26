@@ -90,6 +90,22 @@
   #time{font-size:56px;line-height:1;font-weight:716;letter-spacing:-.03em;
     font-variant-numeric:tabular-nums;margin:0;color:#000}
   .timer-area.running #time{font-size:70px}
+  /* Inspection / tahan / siap / timer jalan: object lain disembunyikan, TAPI
+     angka inspection/timer STAY IN PLACE — tidak pindah ke tengah layar dan
+     tidak naik ke atas. Caranya: pakai visibility:hidden, bukan display:none,
+     jadi ruang object yang disembunyikan tetap ada dan posisi angka tidak
+     bergeser sama sekali. flex:1 di timer-area dihapus (itu yang tadinya
+     memindahkan angka ke tengah). Tombol ← Kembali sengaja TIDAK di-hide
+     di sini, supaya inspection bisa dibatalkan. */
+  body.timer-active .session,
+  body.timer-active .pill-nav,
+  body.timer-active .puzzle-top,
+  body.timer-active .scramble-box,
+  body.timer-active .sp1,
+  body.timer-active .sp2,
+  body.timer-active .sp3,
+  body.timer-active .bottom-row,
+  body.timer-active #sub{visibility:hidden}
   .timer-area.holding #time{color:#ff3b30}
   .timer-area.holding.yellow #time{color:#ffcc00}
   .timer-area.ready #time{color:#30d158}
@@ -101,7 +117,9 @@
   .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:12px;min-height:120px}
   .net-card{display:flex;align-items:center;justify-content:center}
   .net-card svg{display:block;max-width:100%;height:auto}
-  .stats-card{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  /* Revisi 14:48: user minta statistik diturunkan dikit — hanya kartu statistik
+     yang turun 14px, kartu net tidak digeser, sp1/sp2/sp3 tidak diubah. */
+  .stats-card{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:14px}
   .stats-card .cell{padding:8px 6px;text-align:center}
   .stats-card .cell:nth-child(-n+4){border-bottom:1px solid #f2f2f7}
   .stats-card .cell:nth-child(odd){border-right:1px solid #f2f2f7}
@@ -117,6 +135,8 @@
   .row .s{font-size:12px;color:#8e8e93}
   .row button{border:0;background:#f2f2f7;color:#000;border-radius:10px;padding:6px 9px;font:inherit;font-size:12px;font-weight:700;margin-left:6px}
   .row button.danger{color:#ff3b30}
+  .draw-box{margin:2px 0 12px;padding:12px;background:#f2f2f7;border-radius:12px;text-align:center}
+  .draw-box svg{display:block;margin:0 auto;max-width:100%;height:auto}
   .empty{color:#8e8e93;font-size:13px;text-align:center;padding:14px 0}
   .actions{display:flex;gap:8px;margin-top:12px}
   .actions button{flex:1;border:0;border-radius:14px;padding:12px;font:inherit;font-size:14px;font-weight:700;background:#fff;color:#000;box-shadow:0 1px 4px rgba(0,0,0,.07)}
@@ -179,7 +199,7 @@
       <h2>Semua waktu · <span id="count">0</span> solve</h2>
       <div id="all"></div>
     </div>
-    <p class="muted">Ketuk +2 untuk penalti, DNF kalau gagal, Hapus untuk membuang satu waktu. Data tersimpan di HP kamu saja.</p>
+    <p class="muted">Ketuk satu waktu untuk melihat draw scramble-nya. Ketuk +2 untuk penalti, DNF kalau gagal, Hapus untuk membuang satu waktu. Data tersimpan di HP kamu saja.</p>
     <div class="actions">
       <button id="btn-clear">Hapus sesi</button>
       <button id="btn-scramble2" class="primary">Scramble baru</button>
@@ -206,11 +226,11 @@
   <section id="view-profile" class="view">
     <div class="card2">
       <h2>Profile</h2>
-      <p class="muted" id="profile-status">Belum login. Siapa pun bisa daftar akun baru: ketuk tombol di bawah, pilih akun Google, akun baru otomatis terdaftar. Profil dan method tersimpan lokal dulu, dan akan tersinkron ke cloud kalau sudah login.</p>
+      <p class="muted" id="profile-status">Belum login. Siapa pun bisa daftar akun baru lewat Email + Password di bawah. Profil dan method tersimpan lokal dulu, dan akan tersinkron ke cloud kalau sudah login.</p>
       <div class="actions">
-        <button id="btn-login" class="primary">Login / Daftar dengan Google</button>
         <button id="btn-logout" style="display:none">Logout</button>
       </div>
+      <p class="muted" style="margin-top:14px">Nama (kolom terpisah dari login/daftar):</p>
       <input id="profile-name" class="profile-input" type="text" placeholder="Nama kamu" autocomplete="name">
       <p class="muted" style="margin-top:14px">Method yang kamu pakai, pilih satu:</p>
       <div class="method-row" id="method-row">
@@ -221,6 +241,17 @@
         <button data-method="KO">KO</button>
       </div>
       <p class="muted" id="method-status" style="margin-top:10px">Belum pilih method.</p>
+    </div>
+    <div class="card2" id="card-auth-email">
+      <h2>Daftar / Login dengan Password</h2>
+      <p class="muted">Daftar dan login pakai kolom yang sama saja: isi email + password di bawah, lalu ketuk Daftar untuk akun baru, atau Login kalau sudah punya akun. Nama diambil dari kolom Nama di atas (kolom terpisah).</p>
+      <input id="auth-email" class="profile-input" type="email" placeholder="Email" autocomplete="email">
+      <input id="auth-password" class="profile-input" type="password" placeholder="Password (minimal 6 karakter saat daftar)" autocomplete="current-password">
+      <div class="actions">
+        <button id="btn-register" class="primary">Daftar</button>
+        <button id="btn-login-email">Login</button>
+      </div>
+      <p class="muted" id="auth-email-status" style="margin-top:10px">Belum ada login/daftar pakai password.</p>
     </div>
     <div class="card2">
       <h2>Import / Export Time</h2>
@@ -392,9 +423,12 @@ function faceGrid(cube, face, n){
   if(n===3) return full;
   return [[full[0][0],full[0][2]],[full[2][0],full[2][2]]];
 }
-function renderNet(){
-  const cube = cubeAfter(currentScramble);
-  const n = puzzle==='2x2' ? 2 : 3;
+/* netSVG: gambar diagram (net) untuk scramble & puzzle apa pun, dipakai juga
+   di list time — ketuk satu waktu di list, diagram scramble-nya muncul di bawah baris itu.
+   renderNet() untuk layar timer tetap pakai currentScramble + puzzle yang sedang aktif. */
+function netSVG(scramble, pz){
+  const cube = cubeAfter(scramble);
+  const n = pz==='2x2' ? 2 : 3;
   /* 3x3 diperkecil 13 -> 11 supaya tinggi net 117px muat di kartu, tidak meluber/tenggelam.
      2x2 tetap 17 (tinggi net 114px, sudah muat). */
   const size = n===2 ? 17 : 11, gap = 2, step = size+gap;
@@ -408,7 +442,10 @@ function renderNet(){
       rects += `<rect x="${(ox+c)*step}" y="${(oy+r)*step}" width="${size}" height="${size}" rx="3" fill="${col}" stroke="#000" stroke-opacity=".12"/>`;
     }));
   }
-  $('netCard').innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${rects}</svg>`;
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${rects}</svg>`;
+}
+function renderNet(){
+  $('netCard').innerHTML = netSVG(currentScramble, puzzle);
 }
 
 /* ---------- Waktu & statistik ---------- */
@@ -472,8 +509,8 @@ function render(){
   $('count').textContent = ok.length;
   const row = (s)=>{
     const gi = solves.indexOf(s);
-    return `<div class="row"><div><div class="t mono">${s.penalty==='DNF'?'DNF':fmt(val(s))}${s.penalty==='+2'?' (+2)':''}</div><div class="s">#${ok.length-ok.indexOf(s)} · ${s.scramble.slice(0,40)}${s.scramble.length>40?'…':''}</div></div><div>
-    <button onclick="pen(${gi},'+2')">+2</button><button onclick="pen(${gi},'DNF')">DNF</button><button class="danger" onclick="del(${gi})">${s._confirmDelete ? 'Yakin?' : 'Hapus'}</button></div></div>`;
+    return `<div><div class="row"><div onclick="toggleDraw(${gi})" style="cursor:pointer" title="Ketuk untuk lihat draw scramble"><div class="t mono">${s.penalty==='DNF'?'DNF':fmt(val(s))}${s.penalty==='+2'?' (+2)':''}</div><div class="s">#${ok.length-ok.indexOf(s)} · ${s.scramble.slice(0,40)}${s.scramble.length>40?'…':''}</div></div><div>
+    <button onclick="pen(${gi},'+2')">+2</button><button onclick="pen(${gi},'DNF')">DNF</button><button class="danger" onclick="del(${gi})">${s._confirmDelete ? 'Yakin?' : 'Hapus'}</button></div></div>${s._showDraw ? `<div class="draw-box">${netSVG(s.scramble, s.puzzle)}</div>` : ''}</div>`;
   };
   $('all').innerHTML = [...ok].reverse().map(row).join('') || '<div class="empty">Belum ada waktu.</div>';
 }
@@ -490,6 +527,14 @@ window.del = (i)=>{
     return;
   }
   markDeleted(s); cloudDelete(s); solves.splice(i,1); save();
+};
+/* Draw scramble di list time: ketuk waktu/scramble di satu baris, diagram
+   scramble solve itu muncul di bawah barisnya (pakai netSVG yang sama dengan
+   diagram di layar timer). Ketuk lagi untuk menyembunyikan. Tombol +2/DNF/Hapus
+   tidak ikut memicu ini, karena onclick hanya di bagian kiri baris. */
+window.toggleDraw = (i)=>{
+  const s = solves[i]; if(!s) return;
+  s._showDraw = !s._showDraw; render();
 };
 
 /* ---------- Timer: tahan – lepas – ketuk ---------- */
@@ -513,6 +558,17 @@ function updateInspUI(){
 }
 function setState(s, sub){
   state = s;
+  /* Hide object lain (permintaan user 14:50, diperluas 14:55, dikoreksi 14:57):
+     hide SUDAH mulai sejak inspection, bukan baru saat timer jalan — jadi
+     selama inspection, tahan, siap, dan timer jalan, semua object lain hilang
+     dan angka inspection/timer STAY IN PLACE (tidak pindah, lihat CSS
+     body.timer-active yang pakai visibility:hidden). Pas stop / batal
+     inspection, setState('idle') dipanggil lagi, class ini lepas, semua
+     object muncul lagi.
+     Pengecualian: tombol ← Kembali TIDAK di-hide selama inspection, supaya
+     inspection tetap bisa dibatalkan; saat timer jalan, tombol itu memang
+     sudah disembunyikan oleh updateInspUI (bukan state inspection). */
+  document.body.classList.toggle('timer-active', s!=='idle');
   const a = $('timerArea');
   a.classList.toggle('holding', s==='holding');
   a.classList.toggle('ready', s==='ready');
@@ -646,16 +702,58 @@ $('btn-login')?.addEventListener('click', async ()=>{
 $('btn-logout')?.addEventListener('click', async ()=>{
   try{ if(window.firebase && firebase.auth) await firebase.auth().signOut(); }catch(e){}
 });
+/* ---------- Daftar / Login pakai Password (Email + Password, Firebase Auth) ----------
+   Nama TIDAK di dalam form daftar/login — nama ada di kolom terpisah di atas
+   (input #profile-name). Saat daftar, nama dari kolom itu dipakai sebagai
+   displayName akun. Login hanya butuh email + password, tanpa nama.
+   Provider Email/Password harus diaktifkan dulu di Firebase Console >
+   Authentication > Sign-in method, kalau belum aktif akan muncul error
+   auth/operation-not-allowed di status di bawah. */
+function authEmailMsg(err){
+  const code = (err && err.code) || '';
+  if(code==='auth/email-already-in-use') return 'Email ini sudah terdaftar, silakan login saja.';
+  if(code==='auth/weak-password') return 'Password terlalu pendek, minimal 6 karakter.';
+  if(code==='auth/invalid-email') return 'Email tidak valid.';
+  if(code==='auth/user-not-found') return 'Akun tidak ditemukan, silakan daftar dulu.';
+  if(code==='auth/wrong-password' || code==='auth/invalid-credential') return 'Email atau password salah.';
+  if(code==='auth/operation-not-allowed') return 'Login pakai password belum diaktifkan di Firebase Console > Authentication.';
+  if(code==='auth/too-many-requests') return 'Terlalu banyak percobaan, coba lagi nanti.';
+  return (err && err.message) || String(err);
+}
+$('btn-register')?.addEventListener('click', async ()=>{
+  try{
+    if(!window.firebase || !firebase.auth) throw new Error('Firebase Auth tidak tersedia di browser ini.');
+    const email = ($('auth-email')?.value || '').trim();
+    const password = $('auth-password')?.value || '';
+    if(!email || !password) { $('auth-email-status').textContent = 'Isi email dan password dulu untuk daftar.'; return; }
+    const cred = await firebase.auth().createUserWithEmailAndPassword(email, password);
+    const name = ($('profile-name')?.value || '').trim();
+    if(name && cred.user) { try{ await cred.user.updateProfile({displayName: name}); }catch(e){} profile.name = name; saveProfile(); }
+    $('auth-email-status').textContent = 'Akun baru berhasil dibuat dan sudah login sebagai ' + email + '.';
+  }catch(err){ $('auth-email-status').textContent = 'Daftar gagal: ' + authEmailMsg(err); }
+});
+$('btn-login-email')?.addEventListener('click', async ()=>{
+  try{
+    if(!window.firebase || !firebase.auth) throw new Error('Firebase Auth tidak tersedia di browser ini.');
+    const email = ($('auth-email')?.value || '').trim();
+    const password = $('auth-password')?.value || '';
+    if(!email || !password) { $('auth-email-status').textContent = 'Isi email dan password dulu untuk login.'; return; }
+    const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+    $('auth-email-status').textContent = 'Login berhasil sebagai ' + (cred.user && cred.user.email ? cred.user.email : email) + '.';
+  }catch(err){ $('auth-email-status').textContent = 'Login gagal: ' + authEmailMsg(err); }
+});
 try{
   if(window.firebase && firebase.auth){
     firebase.auth().onAuthStateChanged(user=>{
       if(user){
-        $('profile-status').textContent = 'Login sebagai ' + (user.displayName || user.email || 'pengguna Google') + '.';
-        $('btn-login').style.display = 'none'; $('btn-logout').style.display = '';
+        $('profile-status').textContent = 'Login sebagai ' + (user.displayName || user.email || 'pengguna') + '.';
+        if($('btn-login')) $('btn-login').style.display = 'none'; $('btn-logout').style.display = '';
+        if($('card-auth-email')) $('card-auth-email').style.display = 'none';
         if(!profile.name && user.displayName){ profile.name = user.displayName; saveProfile(); }
       } else {
-        $('profile-status').textContent = 'Belum login. Siapa pun bisa daftar akun baru: ketuk Login / Daftar dengan Google, pilih akun Google, akun baru otomatis terdaftar.';
-        $('btn-login').style.display = ''; $('btn-logout').style.display = 'none';
+        $('profile-status').textContent = 'Belum login. Siapa pun bisa daftar akun baru lewat Email + Password di bawah.';
+        if($('btn-login')) $('btn-login').style.display = ''; $('btn-logout').style.display = 'none';
+        if($('card-auth-email')) $('card-auth-email').style.display = '';
       }
       renderProfile();
     });
