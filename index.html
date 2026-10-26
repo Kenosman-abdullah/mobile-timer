@@ -224,11 +224,11 @@
     </div>
     <div class="card2">
       <h2>Import / Export Time</h2>
-      <p class="muted">Export menyimpan semua waktu kamu ke file JSON, supaya bisa dicadangkan atau dipindah ke HP lain. Import membaca file JSON hasil export timer ini, waktu yang sama tidak akan diduplikasi.</p>
+      <p class="muted">Export menyimpan semua waktu kamu ke file .txt, supaya bisa dicadangkan atau dipindah ke HP lain. Import membaca file .txt hasil export timer ini (file .json lama juga masih bisa diimport), waktu yang sama tidak akan diduplikasi.</p>
       <div class="actions">
         <button id="btn-export" class="primary">Export Time</button>
         <button id="btn-import">Import Time</button>
-        <input type="file" id="file-import" accept=".json,application/json" style="display:none">
+        <input type="file" id="file-import" accept=".txt,.json,text/plain,application/json" style="display:none">
       </div>
       <p class="muted" id="io-status" style="margin-top:10px">Belum ada import/export.</p>
     </div>
@@ -448,19 +448,27 @@ function avg(arr){
   if(!isFinite(v[0])) return null;
   return v.reduce((a,b)=>a+b,0)/v.length;
 }
+/* AOxx hanya berlaku kalau jumlah solve sudah mencapai angka itu:
+   AO5 baru muncul setelah 5 solve, AO12 setelah 12, AO100 setelah 100,
+   AO1000 setelah 1000. Sebelum itu tampil '-'. Sebelum revisi ini, AO12
+   bisa muncul dari 5 solve saja karena slice(-12) mengambil semua yang ada. */
+function aoN(ok, n){
+  if(ok.length < n) return null;
+  return avg(ok.slice(-n));
+}
 function save(){ try{ localStorage.setItem('cube-timer-solves', JSON.stringify(solves)); }catch(e){} render(); }
 function render(){
   const ok = solves.filter(s=>s.puzzle===puzzle);
   const vals = ok.map(val).filter(isFinite);
-  $('st-ao5').textContent = fmt(avg(ok.slice(-5)));
-  $('st-ao12').textContent = fmt(avg(ok.slice(-12)));
-  $('st-ao100').textContent = fmt(avg(ok.slice(-100)));
-  $('st-ao1000').textContent = fmt(avg(ok.slice(-1000)));
+  $('st-ao5').textContent = fmt(aoN(ok, 5));
+  $('st-ao12').textContent = fmt(aoN(ok, 12));
+  $('st-ao100').textContent = fmt(aoN(ok, 100));
+  $('st-ao1000').textContent = fmt(aoN(ok, 1000));
   $('st-mean').textContent = vals.length ? fmt(vals.reduce((a,b)=>a+b,0)/vals.length) : '-';
   $('st-pb').textContent = vals.length ? fmt(Math.min(...vals)) : '-';
   $('st-worst').textContent = vals.length ? fmt(Math.max(...vals)) : '-';
-  $('st-big').textContent = ok.length ? (fmt(avg(ok.slice(-5)))!=='-' ? fmt(avg(ok.slice(-5))) : fmt(vals[vals.length-1])) : '-';
-  $('st-detail').textContent = ok.length + ' solve di sesi ' + puzzle + '. AO1000: ' + fmt(avg(ok.slice(-1000))) + ' · Worst: ' + (vals.length ? fmt(Math.max(...vals)) : '-') + ' · PB: ' + (vals.length ? fmt(Math.min(...vals)) : '-') + '.';
+  $('st-big').textContent = fmt(aoN(ok, 5));
+  $('st-detail').textContent = ok.length + ' solve di sesi ' + puzzle + '. AO1000: ' + fmt(aoN(ok, 1000)) + ' · Worst: ' + (vals.length ? fmt(Math.max(...vals)) : '-') + ' · PB: ' + (vals.length ? fmt(Math.min(...vals)) : '-') + '.';
   $('count').textContent = ok.length;
   const row = (s)=>{
     const gi = solves.indexOf(s);
@@ -655,21 +663,21 @@ try{
 }catch(e){}
 renderProfile();
 /* ---------- Import / Export Time (di Profile) ----------
-   Export: semua solve jadi satu file JSON, bisa dicadangkan / dipindah HP.
-   Import: baca file JSON hasil export timer ini (array, atau {solves:[...]}),
+   Export: semua solve jadi satu file .txt (isinya data JSON timer), bisa dicadangkan / dipindah HP.
+   Import: baca file .txt hasil export timer ini (array, atau {solves:[...]}; file .json lama juga diterima),
    waktu yang sama tidak diduplikasi, dan waktu yang diimpor bisa mengembalikan
    waktu yang sempat dihapus (kuncinya dikeluarkan dari daftar deleted-keys). */
 function solveKey(s){ return (s.puzzle||'')+'|'+(s.at||'')+'|'+s.ms+'|'+(s.scramble||''); }
 $('btn-export')?.addEventListener('click', ()=>{
   try{
     const data = { app:'mobile timer', exportedAt: new Date().toISOString(), solves: solves };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'text/plain'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'mobile-timer-times-' + new Date().toISOString().slice(0,10) + '.json';
+    a.download = 'mobile-timer-times-' + new Date().toISOString().slice(0,10) + '.txt';
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-    $('io-status').textContent = solves.length + ' time diekspor ke file JSON.';
+    $('io-status').textContent = solves.length + ' time diekspor ke file .txt.';
   }catch(e){ $('io-status').textContent = 'Export gagal: ' + (e.message || e); }
 });
 $('btn-import')?.addEventListener('click', ()=>$('file-import')?.click());
