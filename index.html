@@ -20,7 +20,12 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   :root{color-scheme:light}
   html,body{margin:0;padding:0;background:#f2f2f7;color:#000;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
     font-family:"Recursive","Rubik",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  /* Anti-copy: teks timer tidak bisa diseleksi/di-copy, supaya tahan lama
+     untuk start tidak memunculkan menu copy (mis. di tombol Kembali).
+     Kolom input tetap bisa diseleksi/diedit seperti biasa. */
+  input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
     font-variation-settings:"CASL" 0,"CRSV" 0;
     -webkit-font-smoothing:antialiased}
   /* Font asli CubeTime, dari repo-nya langsung (dicek satu per satu):
@@ -65,8 +70,23 @@
 
   .puzzle-top button{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:#000;padding:6px 2px}
   .puzzle-top button span{color:#8e8e93;font-size:12px}
-  .session{display:flex;align-items:center;gap:7px;font-size:17px;font-weight:500;letter-spacing:-.01em}
+  .session{display:flex;align-items:center;gap:7px;font-size:17px;font-weight:500;letter-spacing:-.01em;cursor:pointer}
   .session .ic{font-size:18px;color:#000}
+  .session .chev{color:#8e8e93;font-size:12px}
+  /* Popup sesi: kotak persegi di tengah layar, daftar sesi event aktif + tombol New. */
+  .session-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:20px}
+  .session-modal[hidden]{display:none}
+  .session-modal-box{background:#fff;color:#000;border-radius:18px;width:min(360px,calc(100vw - 40px));aspect-ratio:1;display:flex;flex-direction:column;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.30)}
+  .session-modal-head{display:flex;align-items:center;justify-content:space-between}
+  .session-modal-title{font-size:17px;font-weight:700}
+  .session-modal-close{border:0;background:none;font-size:18px;line-height:1;padding:6px;color:inherit}
+  .session-modal-list{flex:1;overflow-y:auto;margin-top:6px;min-height:0}
+  .session-modal-list .row{cursor:pointer}
+  .badge-aktif{font-size:13px;font-weight:700;color:#34c759}
+  .pick-hint{font-size:13px;color:#8e8e93}
+  .session-modal-newbtn{width:100%;margin-top:10px}
+  body.dark .session-modal-box{background:#000;color:#fff;border:1px solid #2c2c2e}
+  body.dark .badge-aktif{color:#30d158}
   #puzzleBtn{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:#000;padding:6px 2px}
   #puzzleBtn span{color:#8e8e93;font-size:12px}
   .view{display:none;flex:1;flex-direction:column}
@@ -197,7 +217,7 @@
 <body>
 <div class="app">
   <header>
-    <div class="session"><span class="ic">▣</span> Default Session</div>
+    <div class="session" id="session-open" title="Ketuk untuk ganti sesi" role="button"><span class="ic">▣</span> <span id="session-name">Default Session</span> <span class="chev">▾</span></div>
   </header>
 
   <!-- Pill nav di pojok kanan atas: 1 timer, 2 halaman list time, 3 profile.
@@ -242,6 +262,7 @@
   <section id="view-list" class="view">
     <div class="card2">
       <h2>Semua waktu · <span id="count">0</span> solve</h2>
+      <p class="muted" id="best-stats" style="margin-bottom:8px">Terbaik: -</p>
       <div id="all"></div>
     </div>
     <p class="muted">Ketuk satu waktu untuk melihat draw scramble-nya. Ketuk +2 untuk penalti, DNF kalau gagal, Hapus untuk membuang satu waktu. Data tersimpan di HP kamu saja.</p>
@@ -288,6 +309,16 @@
       <p class="muted" id="method-status" style="margin-top:10px">Belum pilih method.</p>
     </div>
     <div class="card2">
+      <h2>Sesi</h2>
+      <p class="muted">Sesi aktif <span id="session-event">3x3</span>: <span id="session-current">Default Session</span>. Tiap event punya daftar sesi sendiri, seperti LastCube X — satu event bisa punya banyak sesi, mis. satu sesi per kubus untuk membandingkan waktu. Waktu, statistik, dan list di atas hanya menampilkan sesi aktif event ini. Sesi lama tidak hilang saat pindah sesi, tinggal pilih lagi.</p>
+      <input id="session-name-new" class="profile-input" type="text" placeholder="Nama sesi baru">
+      <div class="actions">
+        <button id="btn-session-add" class="primary">Tambah sesi</button>
+      </div>
+      <div id="session-list" style="margin-top:10px"></div>
+      <p class="muted" id="session-status" style="margin-top:10px"></p>
+    </div>
+    <div class="card2">
       <h2>Tampilan</h2>
       <div class="actions">
         <button id="darkmode-btn" style="font-size:28px" title="Dark mode">🌙</button>
@@ -317,6 +348,28 @@
     </div>
   </section>
 
+</div>
+
+<!-- Popup sesi: ketuk tulisan sesi di header. Kotak persegi: daftar sesi event aktif + tombol New. -->
+<div id="session-modal" class="session-modal" hidden>
+  <div class="session-modal-box" role="dialog" aria-modal="true" aria-label="Pilih sesi">
+    <div class="session-modal-head">
+      <div class="session-modal-title">Sesi · <span id="session-modal-event">3x3</span></div>
+      <button id="session-modal-close" aria-label="Tutup">✕</button>
+    </div>
+    <div id="session-modal-list" class="session-modal-list"></div>
+    <div id="session-modal-newbox" hidden>
+      <input id="session-modal-name" class="profile-input" type="text" placeholder="Nama sesi baru">
+      <div class="actions">
+        <button id="session-modal-create" class="primary">Buat sesi</button>
+        <button id="session-modal-cancel">Batal</button>
+      </div>
+      <p class="muted" id="session-modal-status" style="margin-top:8px"></p>
+    </div>
+    <div class="actions">
+      <button id="session-modal-newbtn" class="primary session-modal-newbtn">＋ New</button>
+    </div>
+  </div>
 </div>
 
 <!-- Firebase cloud: SDK compat, supaya bisa dipakai langsung di file HTML tanpa build.
@@ -357,9 +410,19 @@ function markDeleted(s){
   deletedKeys.push(s.at+'|'+s.ms+'|'+s.scramble);
   try{ localStorage.setItem('cube-timer-deleted-keys', JSON.stringify(deletedKeys)); }catch(e){}
 }
+/* ---------- Cloud sync: PER AKUN (bukan kolam bersama) ----------
+   Aturan: waktu hanya naik ke cloud kalau sedang login, dan selalu membawa
+   uid pemiliknya. cloudLoad hanya mengambil dokumen milik akun yang login,
+   dan tidak jalan sama sekali kalau tidak login — jadi device yang tidak
+   login hanya melihat waktu lokalnya sendiri, tidak pernah waktu device
+   lain atau akun lain. (Perbaikan atas bug lama: dulu 'solves' tanpa uid
+   dan cloudLoad mengambil 500 solve terbaru milik siapa saja.) */
 function cloudAdd(s){
   if(!db) return;
-  try{ db.collection('solves').add({puzzle:s.puzzle, ms:s.ms, scramble:s.scramble, penalty:s.penalty||'', at:s.at})
+  let u = null;
+  try{ u = firebase.auth().currentUser; }catch(e){}
+  if(!u) return; // tidak login -> hanya lokal, tidak naik ke cloud
+  try{ db.collection('solves').add({uid:u.uid, puzzle:s.puzzle, ms:s.ms, scramble:s.scramble, penalty:s.penalty||'', at:s.at, session:sessionOf(s), comment:s.comment||''})
     .then(doc=>{ s.cloudId = doc.id; try{ localStorage.setItem('cube-timer-solves', JSON.stringify(solves)); }catch(e){} })
     .catch(()=>{}); }catch(e){}
 }
@@ -373,39 +436,78 @@ function cloudDelete(s){
 }
 function cloudLoad(){
   if(!db) return;
-  try{ db.collection('solves').orderBy('at').limit(500).get().then(snap=>{
+  let u = null;
+  try{ u = firebase.auth().currentUser; }catch(e){}
+  if(!u) return; // tidak login -> tidak mengambil apa pun dari cloud
+  try{ db.collection('solves').where('uid','==',u.uid).limit(500).get().then(snap=>{
     let changed = false;
-    snap.forEach(doc=>{
+    const docs = [];
+    snap.forEach(doc=>docs.push(doc));
+    docs.sort((a,b)=>(a.data().at||0)-(b.data().at||0)); // ganti orderBy('at') supaya tidak butuh composite index
+    docs.forEach(doc=>{
       const d = doc.data(), key = d.at+'|'+d.ms+'|'+d.scramble;
       if(deletedKeys.includes('id:'+doc.id) || deletedKeys.includes(key)) return;
       const ex = solves.find(x=>(x.at+'|'+x.ms+'|'+x.scramble)===key);
-      if(!ex){ solves.push({puzzle:d.puzzle, ms:d.ms, scramble:d.scramble, penalty:d.penalty||'', at:d.at, cloudId:doc.id}); changed = true; }
-      else if(!ex.cloudId) ex.cloudId = doc.id;
+      if(!ex){ const ns2 = {puzzle:d.puzzle, ms:d.ms, scramble:d.scramble, penalty:d.penalty||'', at:d.at, cloudId:doc.id, session:d.session||'Default Session', comment:d.comment||''}; solves.push(ns2); { const list = sessionsFor(ns2.puzzle || puzzle); if(!list.includes(ns2.session)) list.push(ns2.session); } changed = true; }
+      else { if(!ex.cloudId) ex.cloudId = doc.id; if(!ex.session && d.session) ex.session = d.session; if(!ex.comment && d.comment) ex.comment = d.comment; }
     });
-    if(changed) save();
+    if(changed){ saveSessions(); save(); }
   }).catch(()=>{}); }catch(e){}
 }
 let state = 'idle', holdTimer = null, yellowTimer = null, holdFromInspection = false, raf = null, startAt = 0, inspAt = 0, inspTimer = null, wakeLock = null;
 let currentScramble = '';
 
-/* ---------- Scramble: generator-nya CubeTime ----------
-   CubeTime sendiri tidak punya generator scramble di kode Swift-nya: README-nya bilang
-   CubeTime pakai library scrambler resmi TNoodle (WCA, transpiled tnoodle-lib-objc).
-   TNoodle itu Java/ObjC, tidak bisa jalan langsung di web Android/Vercel, jadi port web ini
-   pakai aturan yang sama dengan TNoodle/CubeTime: scramble random-state style, panjang
-   3x3 = 20 langkah, 2x2 = 11 langkah, set huruf U D R L F B untuk 3x3 dan U R F untuk 2x2,
-   tanpa pengulangan face yang sama berturut-turut. */
+/* ---------- Scramble: metode resmi WCA (random-state) ----------
+   Dulu port web ini pakai generator buatan sendiri (3x3 = 20 langkah acak,
+   2x2 = 11 langkah acak, tanpa face sama berturut-turut) yang hanya meniru
+   aturan TNoodle. Sekarang scramble dibuat dengan metode resmi WCA:
+   random-state — dari satu state kubus acak yang valid, dicari urutan langkah
+   menuju state itu — persis cara TNoodle-WCA membuat scramble 3x3/2x2.
+   Catatan jujur: program resmi TNoodle-WCA itu file JAR Java yang tidak bisa
+   jalan di dalam halaman browser, jadi yang dipakai di sini adalah cubing.js
+   (randomScrambleForEvent dari https://cdn.cubing.net/v0/js/cubing/scramble),
+   pustaka browser yang menerapkan metode random-state yang sama dan dipakai
+   timer-timer web besar. Ini BUKAN klaim bahwa JAR TNoodle-nya jalan di halaman.
+   Cara kerja: scramble berikutnya dibuat di background (prefetch) begitu halaman
+   dibuka dan setiap habis ganti scramble, jadi newScramble() tidak pernah
+   menunggu jaringan. Kalau modul CDN gagal dimuat (mis. offline), generator lama
+   dipakai secara diam-diam supaya timer tidak pernah rusak. */
 const FACES = { '3x3':['U','D','R','L','F','B'], '2x2':['U','R','F'] };
 const LENS = { '3x3':20, '2x2':11 };
-function newScramble(){
+function legacyScramble(){
   const faces = FACES[puzzle], len = LENS[puzzle], out = []; let prev = '';
   for(let i=0;i<len;i++){
     let f; do { f = faces[Math.floor(Math.random()*faces.length)]; } while(f===prev);
     prev = f; out.push(f + ['',"'",'2'][Math.floor(Math.random()*3)]);
   }
-  currentScramble = out.join(' ');
+  return out.join(' ');
+}
+let cubingRandomScramble = null;   // diisi dynamic import di bawah, kalau CDN bisa dimuat
+let pendingScramble = null, pendingPuzzle = null;  // scramble resmi hasil prefetch
+function prefetchScramble(){
+  if(!cubingRandomScramble) return;
+  const pz = puzzle;
+  try{
+    cubingRandomScramble(pz === '3x3' ? '333' : '222').then(alg=>{
+      pendingScramble = alg.toString(); pendingPuzzle = pz;
+    }).catch(()=>{});
+  }catch(e){}
+}
+try{
+  import('https://cdn.cubing.net/v0/js/cubing/scramble').then(m=>{
+    cubingRandomScramble = m.randomScrambleForEvent;
+    prefetchScramble();
+  }).catch(()=>{});
+}catch(e){}
+function newScramble(){
+  if(pendingScramble && pendingPuzzle === puzzle){
+    currentScramble = pendingScramble; pendingScramble = null;
+  } else {
+    currentScramble = legacyScramble();
+  }
   $('scramble').textContent = currentScramble;
   renderNet();
+  prefetchScramble();
 }
 
 /* ---------- Mesin kubus 3x3 (koordinat 3D, jadi net-nya benar) ----------
@@ -529,6 +631,149 @@ function renderProfile(){
   });
   if($('method-status')) $('method-status').textContent = profile.method ? 'Method kamu: ' + profile.method : 'Belum pilih method.';
 }
+/* ---------- Sesi per event, gaya LastCube X ----------
+   Kredit dasar: CubeTime oleh CubeLabsNZ, lisensi GPL-3.0 — logika sesi
+   Standard-nya di-port ke web (Swift tidak bisa jalan di browser).
+   Modelnya seperti LastCube X: tiap event (3x3 / 2x2) punya daftar sesi
+   sendiri, jadi satu event bisa punya banyak sesi — mis. satu sesi per
+   kubus, untuk membandingkan waktu antar kubus. Pindah event = pindah ke
+   sesi aktif event itu; sesi event lain tidak ikut berubah.
+   Solve lama tanpa field session dianggap milik 'Default Session', jadi
+   data lama tidak hilang saat fitur ini ditambahkan. */
+const DEFAULT_SESSION = 'Default Session';
+function sessionOf(s){ return (s && s.session) ? s.session : DEFAULT_SESSION; }
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function sessionsFor(p){ if(!sessions[p] || !Array.isArray(sessions[p])) sessions[p] = [DEFAULT_SESSION]; return sessions[p]; }
+function activeSession(){ return currentSession[puzzle] || DEFAULT_SESSION; }
+let sessions = {};
+try {
+  const raw = JSON.parse(localStorage.getItem('mobile-timer-sessions') || 'null');
+  if(Array.isArray(raw)){ sessions = { '3x3': raw.slice(), '2x2': raw.slice() }; } // migrasi format lama: satu daftar untuk semua puzzle
+  else if(raw && typeof raw === 'object'){ sessions = raw; }
+} catch(e){ sessions = {}; }
+['3x3','2x2'].forEach(p=>{ if(!Array.isArray(sessions[p]) || !sessions[p].length) sessions[p] = [DEFAULT_SESSION]; });
+solves.forEach(s=>{ const list = sessionsFor(s.puzzle || puzzle); if(!list.includes(sessionOf(s))) list.push(sessionOf(s)); });
+let currentSession = {};
+try {
+  const rawCur = JSON.parse(localStorage.getItem('mobile-timer-current-session') || 'null');
+  if(typeof rawCur === 'string'){ currentSession = { '3x3': rawCur, '2x2': rawCur }; } // migrasi format lama
+  else if(rawCur && typeof rawCur === 'object'){ currentSession = rawCur; }
+} catch(e){ currentSession = {}; }
+['3x3','2x2'].forEach(p=>{ if(!sessionsFor(p).includes(currentSession[p])) currentSession[p] = DEFAULT_SESSION; });
+function saveSessions(){ try{ localStorage.setItem('mobile-timer-sessions', JSON.stringify(sessions)); localStorage.setItem('mobile-timer-current-session', JSON.stringify(currentSession)); }catch(e){} }
+let confirmDeleteSession = -1;
+function renderSessions(){
+  const list = sessionsFor(puzzle), cur = activeSession();
+  if($('session-name')) $('session-name').textContent = cur;
+  if($('session-current')) $('session-current').textContent = cur;
+  if($('session-event')) $('session-event').textContent = puzzle;
+  const el = $('session-list'); if(!el) return;
+  el.innerHTML = list.map((name,i)=>{
+    const n = solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===name).length;
+    const isCur = name===cur;
+    return `<div class="row"><div><div class="t">${esc(name)}</div><div class="s">${n} solve</div></div><div><button onclick="selectSession(${i})" ${isCur?'disabled':''}>${isCur?'Aktif':'Pilih'}</button><button class="danger" onclick="deleteSession(${i})">${confirmDeleteSession===i ? 'Yakin?' : 'Hapus'}</button></div></div>`;
+  }).join('');
+}
+window.selectSession = (i)=>{
+  const name = sessionsFor(puzzle)[i]; if(!name) return;
+  currentSession[puzzle] = name; saveSessions(); render();
+};
+window.deleteSession = (i)=>{
+  const list = sessionsFor(puzzle);
+  const name = list[i]; if(!name) return;
+  if(name===activeSession()){ if($('session-status')) $('session-status').textContent = 'Sesi aktif tidak bisa dihapus. Pilih sesi lain dulu, baru hapus sesi ini.'; return; }
+  if(confirmDeleteSession!==i){
+    confirmDeleteSession = i; renderSessions();
+    setTimeout(()=>{ if(confirmDeleteSession===i){ confirmDeleteSession = -1; renderSessions(); } }, 3000);
+    return;
+  }
+  confirmDeleteSession = -1;
+  solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===name).forEach(s=>{ markDeleted(s); cloudDelete(s); });
+  solves = solves.filter(s=>!(s.puzzle===puzzle && sessionOf(s)===name));
+  list.splice(i,1); saveSessions(); save();
+  if($('session-status')) $('session-status').textContent = 'Sesi "' + name + '" (' + puzzle + ') dihapus beserta semua waktunya.';
+};
+$('btn-session-add')?.addEventListener('click', ()=>{
+  const input = $('session-name-new'); if(!input) return;
+  const name = (input.value || '').trim();
+  if(!name){ if($('session-status')) $('session-status').textContent = 'Nama sesi tidak boleh kosong.'; return; }
+  const list = sessionsFor(puzzle);
+  if(list.includes(name)){ if($('session-status')) $('session-status').textContent = 'Sesi "' + name + '" sudah ada di ' + puzzle + ', pilih dari daftar.'; return; }
+  list.push(name); currentSession[puzzle] = name; saveSessions(); input.value = '';
+  if($('session-status')) $('session-status').textContent = 'Sesi "' + name + '" (' + puzzle + ') dibuat dan jadi sesi aktif.';
+  render();
+});
+/* ---------- Popup sesi: ketuk tulisan sesi di header -> kotak persegi
+   berisi daftar sesi event aktif + tombol New. Hanya saat idle, supaya
+   tidak mengganggu inspection / tahan-untuk-start. */
+function renderSessionModal(){
+  const list = sessionsFor(puzzle), cur = activeSession();
+  if($('session-modal-event')) $('session-modal-event').textContent = puzzle;
+  const el = $('session-modal-list'); if(!el) return;
+  el.innerHTML = list.map((name,i)=>{
+    const n = solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===name).length;
+    const isCur = name===cur;
+    return `<div class="row" onclick="pickSession(${i})"><div><div class="t">${esc(name)}</div><div class="s">${n} solve</div></div><div>${isCur?'<span class="badge-aktif">Aktif ✓</span>':'<span class="pick-hint">Pilih ›</span>'}</div></div>`;
+  }).join('');
+}
+window.pickSession = (i)=>{
+  const name = sessionsFor(puzzle)[i]; if(!name) return;
+  currentSession[puzzle] = name; saveSessions(); render(); closeSessionModal();
+};
+function openSessionModal(){
+  if(state!=='idle') return;
+  renderSessionModal();
+  if($('session-modal-newbox')) $('session-modal-newbox').hidden = true;
+  if($('session-modal-newbtn')) $('session-modal-newbtn').hidden = false;
+  if($('session-modal-name')) $('session-modal-name').value = '';
+  if($('session-modal-status')) $('session-modal-status').textContent = '';
+  if($('session-modal')) $('session-modal').hidden = false;
+}
+function closeSessionModal(){ if($('session-modal')) $('session-modal').hidden = true; }
+$('session-open')?.addEventListener('click', ()=>{ if(state==='idle') openSessionModal(); });
+$('session-modal-close')?.addEventListener('click', closeSessionModal);
+$('session-modal')?.addEventListener('click', (e)=>{ if(e.target===$('session-modal')) closeSessionModal(); });
+$('session-modal-newbtn')?.addEventListener('click', ()=>{
+  if($('session-modal-newbox')) $('session-modal-newbox').hidden = false;
+  if($('session-modal-newbtn')) $('session-modal-newbtn').hidden = true;
+  if($('session-modal-status')) $('session-modal-status').textContent = '';
+  setTimeout(()=>{ const inp = $('session-modal-name'); if(inp && inp.focus) inp.focus(); }, 60);
+});
+$('session-modal-cancel')?.addEventListener('click', ()=>{
+  if($('session-modal-newbox')) $('session-modal-newbox').hidden = true;
+  if($('session-modal-newbtn')) $('session-modal-newbtn').hidden = false;
+  if($('session-modal-name')) $('session-modal-name').value = '';
+});
+$('session-modal-create')?.addEventListener('click', ()=>{
+  const input = $('session-modal-name'); if(!input) return;
+  const name = (input.value || '').trim();
+  const list = sessionsFor(puzzle);
+  if(!name){ if($('session-modal-status')) $('session-modal-status').textContent = 'Nama sesi tidak boleh kosong.'; return; }
+  if(list.includes(name)){ if($('session-modal-status')) $('session-modal-status').textContent = 'Sesi "' + name + '" sudah ada di ' + puzzle + ', pilih dari daftar.'; return; }
+  list.push(name); currentSession[puzzle] = name; saveSessions(); input.value = '';
+  render(); closeSessionModal();
+});
+/* ---------- Best average + median (port dari CubeTime: Stats +
+   StopwatchManager/getBestAverage C++) ----------
+   getBestAverage di CubeTime: geser jendela selebar n di seluruh sesi,
+   buang nilai min/maks (trim) seperti avg() di sini, DNF = infinity, ambil
+   rata-rata jendela terbaik. Di sini dipakai untuk AO5/AO12/AO100 terbaik
+   di sesi aktif, bukan menggantikan AO terkini yang sudah ada. */
+function bestAO(ok, n){
+  if(ok.length < n) return null;
+  let best = null;
+  for(let i=0;i<=ok.length-n;i++){
+    const a = avg(ok.slice(i,i+n));
+    if(a!=null && (best==null || a<best)) best = a;
+  }
+  return best;
+}
+function medianOf(vals){
+  if(!vals.length) return null;
+  const v = vals.slice().sort((a,b)=>a-b);
+  const m = Math.floor(v.length/2);
+  return v.length % 2 ? v[m] : (v[m-1]+v[m])/2;
+}
 function val(s){ return s.penalty==='DNF' ? Infinity : s.ms + (s.penalty==='+2' ? 2000 : 0); }
 function avg(arr){
   if(arr.length<3) return null;
@@ -547,7 +792,7 @@ function aoN(ok, n){
 }
 function save(){ try{ localStorage.setItem('cube-timer-solves', JSON.stringify(solves)); }catch(e){} render(); }
 function render(){
-  const ok = solves.filter(s=>s.puzzle===puzzle);
+  const ok = solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===activeSession());
   const vals = ok.map(val).filter(isFinite);
   $('st-ao5').textContent = fmt(aoN(ok, 5));
   $('st-ao12').textContent = fmt(aoN(ok, 12));
@@ -557,12 +802,14 @@ function render(){
   $('st-pb').textContent = vals.length ? fmt(Math.min(...vals)) : '-';
   $('st-worst').textContent = vals.length ? fmt(Math.max(...vals)) : '-';
   $('st-big').textContent = fmt(aoN(ok, 5));
-  $('st-detail').textContent = ok.length + ' solve di sesi ' + puzzle + '. AO1000: ' + fmt(aoN(ok, 1000)) + ' · Worst: ' + (vals.length ? fmt(Math.max(...vals)) : '-') + ' · PB: ' + (vals.length ? fmt(Math.min(...vals)) : '-') + '.';
+  $('st-detail').textContent = ok.length + ' solve · sesi ' + activeSession() + ' · ' + puzzle + '. AO1000: ' + fmt(aoN(ok, 1000)) + ' · Worst: ' + (vals.length ? fmt(Math.max(...vals)) : '-') + ' · PB: ' + (vals.length ? fmt(Math.min(...vals)) : '-') + '.';
+  if($('best-stats')) $('best-stats').textContent = 'Terbaik: AO5 ' + fmt(bestAO(ok, 5)) + ' · AO12 ' + fmt(bestAO(ok, 12)) + ' · AO100 ' + fmt(bestAO(ok, 100)) + ' · Median ' + fmt(medianOf(vals)) + '.';
   $('count').textContent = ok.length;
+  renderSessions();
   const row = (s)=>{
     const gi = solves.indexOf(s);
     return `<div><div class="row"><div onclick="toggleDraw(${gi})" style="cursor:pointer" title="Ketuk untuk lihat draw scramble"><div class="t mono">${s.penalty==='DNF'?'DNF':fmt(val(s))}${s.penalty==='+2'?' (+2)':''}</div><div class="s">#${ok.length-ok.indexOf(s)} · ${s.scramble.slice(0,40)}${s.scramble.length>40?'…':''}</div></div><div>
-    <button onclick="pen(${gi},'+2')">+2</button><button onclick="pen(${gi},'DNF')">DNF</button><button class="danger" onclick="del(${gi})">${s._confirmDelete ? 'Yakin?' : 'Hapus'}</button></div></div>${s._showDraw ? `<div class="draw-box">${netSVG(s.scramble, s.puzzle)}</div>` : ''}</div>`;
+    <button onclick="pen(${gi},'+2')">+2</button><button onclick="pen(${gi},'DNF')">DNF</button><button class="danger" onclick="del(${gi})">${s._confirmDelete ? 'Yakin?' : 'Hapus'}</button></div></div>${s._showDraw ? `<div class="draw-box"><div class="s" style="text-align:left;margin-bottom:8px">${new Date(s.at).toLocaleString('id-ID')} · ${esc(s.puzzle)} · ${esc(s.scramble)}</div>${netSVG(s.scramble, s.puzzle)}<input class="profile-input" type="text" placeholder="Komentar solve ini..." value="${esc(s.comment||'')}" onchange="setComment(${gi}, this.value)"></div>` : ''}</div>`;
   };
   $('all').innerHTML = [...ok].reverse().map(row).join('') || '<div class="empty">Belum ada waktu.</div>';
 }
@@ -587,6 +834,17 @@ window.del = (i)=>{
 window.toggleDraw = (i)=>{
   const s = solves[i]; if(!s) return;
   s._showDraw = !s._showDraw; render();
+};
+/* Komentar solve (port dari CubeTime Time List: solve detail + comment box).
+   Disimpan lokal dan ikut ke cloud kalau ada cloudId (lewat cloudAdd baru;
+   komentar lama yang diedit tidak di-push ulang ke cloud di versi ini, supaya
+   tidak menimpa data cloud dengan update parsial — edit komentar tetap
+   tersimpan lokal dan ikut export .txt). */
+window.setComment = (i, text)=>{
+  const s = solves[i]; if(!s) return;
+  s.comment = (text || '').trim();
+  try{ localStorage.setItem('cube-timer-solves', JSON.stringify(solves)); }catch(e){}
+  render();
 };
 
 /* ---------- Timer: tahan – lepas – ketuk ---------- */
@@ -644,7 +902,7 @@ function startInspection(){
     if(elapsed >= 17){
       // WCA: inspection 17 detik ke atas = DNF, solve langsung DNF tanpa jalan timer.
       clearInterval(inspTimer); holdFromInspection = false;
-      const ns = { puzzle, ms:0, scramble: currentScramble, penalty:'DNF', at: Date.now() };
+      const ns = { puzzle, ms:0, scramble: currentScramble, penalty:'DNF', at: Date.now(), session: activeSession() };
       solves.push(ns); cloudAdd(ns); save(); newScramble();
       $('time').textContent = 'DNF';
       setState('idle','DNF - inspection lewat 17 detik. Ketuk untuk inspection lagi');
@@ -669,7 +927,7 @@ function startSolve(){
   clearInterval(inspTimer);
   holdFromInspection = false;
   if(wasInspection && inspElapsed >= 17){
-    const ns = { puzzle, ms:0, scramble: currentScramble, penalty:'DNF', at: Date.now() };
+    const ns = { puzzle, ms:0, scramble: currentScramble, penalty:'DNF', at: Date.now(), session: activeSession() };
     solves.push(ns); cloudAdd(ns); save(); newScramble();
     $('time').textContent = 'DNF';
     setState('idle','DNF - inspection lewat 17 detik. Ketuk untuk inspection lagi');
@@ -683,7 +941,7 @@ function startSolve(){
 function stopSolve(){
   cancelAnimationFrame(raf); unlock();
   const ms = Math.round(performance.now()-startAt);
-  const ns = { puzzle, ms, scramble: currentScramble, penalty:pendingPenalty, at: Date.now() };
+  const ns = { puzzle, ms, scramble: currentScramble, penalty:pendingPenalty, at: Date.now(), session: activeSession() };
   pendingPenalty = '';
   solves.push(ns); cloudAdd(ns);
   save(); newScramble();
@@ -829,6 +1087,7 @@ try{
         if($('btn-login')) $('btn-login').style.display = 'none'; $('btn-logout').style.display = '';
         if($('card-auth-email')) $('card-auth-email').style.display = 'none';
         if(!profile.name && user.displayName){ profile.name = user.displayName; saveProfile(); }
+        cloudLoad(); // baru login -> tarik waktu milik akun ini saja
       } else {
         $('profile-status').textContent = 'Belum login. Siapa pun bisa daftar akun baru lewat Email + Password di bawah.';
         if($('btn-login')) $('btn-login').style.display = ''; $('btn-logout').style.display = 'none';
@@ -871,7 +1130,8 @@ $('file-import')?.addEventListener('change', e=>{
       let added = 0, skipped = 0;
       list.forEach(s=>{
         if(!s || typeof s.ms !== 'number' || !s.scramble) { skipped++; return; }
-        const item = { puzzle: s.puzzle || puzzle, ms: s.ms, scramble: s.scramble, penalty: s.penalty || '', at: s.at || Date.now() };
+        const item = { puzzle: s.puzzle || puzzle, ms: s.ms, scramble: s.scramble, penalty: s.penalty || '', at: s.at || Date.now(), session: s.session || DEFAULT_SESSION, comment: s.comment || '' };
+        { const list = sessionsFor(item.puzzle); if(!list.includes(item.session)) list.push(item.session); }
         const k = solveKey(item);
         if(existing.has(k)) { skipped++; return; }
         existing.add(k); solves.push(item); added++;
@@ -879,7 +1139,7 @@ $('file-import')?.addEventListener('change', e=>{
         deletedKeys = deletedKeys.filter(x=>x!==dk);
         try{ localStorage.setItem('cube-timer-deleted-keys', JSON.stringify(deletedKeys)); }catch(err){}
       });
-      save();
+      saveSessions(); save();
       $('io-status').textContent = added + ' time baru diimpor, ' + skipped + ' dilewati (duplikat / tidak valid). Total sekarang ' + solves.length + ' time.';
     }catch(err){ $('io-status').textContent = 'Import gagal: ' + (err.message || err); }
   };
@@ -893,8 +1153,10 @@ $('btn-clear')?.addEventListener('click', ()=>{
     return;
   }
   b.textContent = 'Hapus sesi';
-  solves.filter(s=>s.puzzle===puzzle).forEach(s=>{ markDeleted(s); cloudDelete(s); });
-  solves = solves.filter(s=>s.puzzle!==puzzle); save();
+  /* Hapus sesi sekarang hanya menghapus sesi aktif + puzzle aktif, bukan
+     semua sesi — kalau tidak, pindah sesi tidak ada gunanya. */
+  solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===activeSession()).forEach(s=>{ markDeleted(s); cloudDelete(s); });
+  solves = solves.filter(s=>!(s.puzzle===puzzle && sessionOf(s)===activeSession())); save();
 });
 $('puzzleBtn').addEventListener('click', ()=>{
   puzzle = puzzle==='3x3' ? '2x2' : '3x3';
@@ -907,8 +1169,11 @@ document.querySelectorAll('.pill-nav button').forEach(b=>b.addEventListener('cli
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   $('view-'+b.dataset.tab).classList.add('on');
 }));
-document.addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); area.dispatchEvent(new PointerEvent('pointerdown')); } });
-document.addEventListener('keyup', e=>{ if(e.code==='Space'){ e.preventDefault(); area.dispatchEvent(new PointerEvent('pointerup')); } });
+document.addEventListener('keydown', e=>{ if(e.code!=='Space') return; if(e.target && e.target.closest && e.target.closest('input,textarea')) return; if($('session-modal') && !$('session-modal').hidden) return; e.preventDefault(); area.dispatchEvent(new PointerEvent('pointerdown')); });
+/* Anti-copy: tahan lama untuk start tidak boleh memunculkan menu copy/seleksi. */
+document.addEventListener('contextmenu', e=>{ e.preventDefault(); });
+document.addEventListener('selectstart', e=>{ if(e.target && e.target.closest && e.target.closest('input,textarea')) return; e.preventDefault(); });
+document.addEventListener('keyup', e=>{ if(e.code!=='Space') return; if(e.target && e.target.closest && e.target.closest('input,textarea')) return; if($('session-modal') && !$('session-modal').hidden) return; e.preventDefault(); area.dispatchEvent(new PointerEvent('pointerup')); });
 /* Dark mode v2: tombol di Profile cuma ikon malam/pagi saja, bukan checkbox.
    Light mode -> logonya 🌙, dark mode -> logonya ☀️. Tersimpan lokal
    (mobile-timer-darkmode), berlaku untuk semua tab, bukan cuma Profile. */
