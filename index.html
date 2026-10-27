@@ -87,6 +87,22 @@
   .session-modal-newbtn{width:100%;margin-top:10px}
   body.dark .session-modal-box{background:#000;color:#fff;border:1px solid #2c2c2e}
   body.dark .badge-aktif{color:#30d158}
+  /* Swipe sesi: geser baris ke kiri untuk memunculkan pensil (edit nama)
+     dan tempat sampah (hapus). */
+  .sess-row{position:relative;overflow:hidden}
+  .sess-row-main{position:relative;z-index:1;background:#fff;touch-action:pan-y;transition:transform .18s ease}
+  .sess-row.open .sess-row-main{transform:translateX(-96px)}
+  .sess-row-actions{position:absolute;top:0;right:0;bottom:0;z-index:0;display:flex}
+  .sess-act{border:0;width:48px;font-size:20px;display:flex;align-items:center;justify-content:center;padding:0}
+  .sess-act.edit{background:#e5e5ea;color:#000}
+  .sess-act.del{background:#ff3b30;color:#fff}
+  .sess-act.confirm{font-size:11px;font-weight:700}
+  .sess-edit-row{display:flex;gap:8px;align-items:center;width:100%}
+  .sess-edit-input{margin-top:0;flex:1;min-width:0}
+  .sess-edit-row button{border:2px solid #e5e5ea;background:#fff;border-radius:10px;padding:8px 10px;font:inherit;font-weight:700}
+  body.dark .sess-row-main{background:#000}
+  body.dark .sess-act.edit{background:#2c2c2e;color:#fff}
+  body.dark .sess-edit-row button{background:#000;color:#fff;border-color:#2c2c2e}
   #puzzleBtn{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:#000;padding:6px 2px}
   #puzzleBtn span{color:#8e8e93;font-size:12px}
   .view{display:none;flex:1;flex-direction:column}
@@ -430,6 +446,10 @@ function cloudUpdate(s){
   if(!db || !s.cloudId) return;
   try{ db.collection('solves').doc(s.cloudId).update({penalty:s.penalty||''}).catch(()=>{}); }catch(e){}
 }
+function cloudSession(s){
+  if(!db || !s.cloudId) return;
+  try{ db.collection('solves').doc(s.cloudId).update({session:s.session}).catch(()=>{}); }catch(e){}
+}
 function cloudDelete(s){
   if(!db || !s.cloudId) return;
   try{ db.collection('solves').doc(s.cloudId).delete().catch(()=>{}); }catch(e){}
@@ -471,7 +491,9 @@ let currentScramble = '';
    Cara kerja: scramble berikutnya dibuat di background (prefetch) begitu halaman
    dibuka dan setiap habis ganti scramble, jadi newScramble() tidak pernah
    menunggu jaringan. Kalau modul CDN gagal dimuat (mis. offline), generator lama
-   dipakai secara diam-diam supaya timer tidak pernah rusak. */
+   dipakai secara diam-diam supaya timer tidak pernah rusak. Semua scramble
+   (resmi maupun cadangan) dilewatkan reduceScramble di bawah, supaya tidak
+   ada langkah mubazir seperti D' U2 D' atau F2 B2 F. */
 const FACES = { '3x3':['U','D','R','L','F','B'], '2x2':['U','R','F'] };
 const LENS = { '3x3':20, '2x2':11 };
 function legacyScramble(){
@@ -501,13 +523,52 @@ try{
 }catch(e){}
 function newScramble(){
   if(pendingScramble && pendingPuzzle === puzzle){
-    currentScramble = pendingScramble; pendingScramble = null;
+    currentScramble = reduceScramble(pendingScramble); pendingScramble = null;
   } else {
-    currentScramble = legacyScramble();
+    currentScramble = reduceScramble(legacyScramble());
   }
   $('scramble').textContent = currentScramble;
   renderNet();
   prefetchScramble();
+}
+/* Gabungkan langkah yang bisa digabung: dua langkah di face yang sama yang
+   hanya dipisah langkah face berlawanan (mis. D' U2 D' atau F2 B2 F) sama
+   dengan satu langkah gabungan, karena face berlawanan saling komutatif
+   (F2 B2 F = B2 F'). State kubus hasil akhirnya persis sama, cuma tidak
+   ada langkah yang terbuang. Dipakai untuk SEMUA jalur (resmi maupun
+   cadangan offline), supaya scramble yang tampil tidak pernah mubazir. */
+const OPP_FACE = {U:'D', D:'U', R:'L', L:'R', F:'B', B:'F'};
+function reduceScramble(str){
+  const raw = String(str||'').trim();
+  const toks = raw.split(/\s+/).filter(Boolean);
+  if(!toks.length || toks.some(t=>!/^[UDRLFB][2']?$/.test(t))) return raw;
+  let mv = toks.map(t=>({f:t[0], a: t.indexOf('2')>=0 ? 2 : (t.indexOf("'")>=0 ? 3 : 1)}));
+  let changed = true;
+  while(changed){
+    changed = false;
+    for(let i=0;i+1<mv.length;i++){
+      if(mv[i].f===mv[i+1].f){
+        const a = (mv[i].a + mv[i+1].a) % 4;
+        if(a===0) mv.splice(i,2); else mv.splice(i,2,{f:mv[i].f, a});
+        changed = true; break;
+      }
+    }
+    if(changed) continue;
+    for(let i=0;i<mv.length && !changed;i++){
+      for(let j=i+1;j<mv.length;j++){
+        if(mv[j].f!==mv[i].f){
+          if(mv[j].f!==OPP_FACE[mv[i].f]) break;
+          continue;
+        }
+        const a = (mv[i].a + mv[j].a) % 4;
+        if(a===0){ mv.splice(j,1); mv.splice(i,1); }
+        else { mv[j] = {f:mv[i].f, a}; mv.splice(i,1); }
+        changed = true; break;
+      }
+    }
+  }
+  const out = mv.map(m=>m.f + (m.a===2?'2':(m.a===3?"'":''))).join(' ');
+  return out || raw;
 }
 
 /* ---------- Mesin kubus 3x3 (koordinat 3D, jadi net-nya benar) ----------
@@ -671,7 +732,10 @@ function renderSessions(){
   el.innerHTML = list.map((name,i)=>{
     const n = solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===name).length;
     const isCur = name===cur;
-    return `<div class="row"><div><div class="t">${esc(name)}</div><div class="s">${n} solve</div></div><div><button onclick="selectSession(${i})" ${isCur?'disabled':''}>${isCur?'Aktif':'Pilih'}</button><button class="danger" onclick="deleteSession(${i})">${confirmDeleteSession===i ? 'Yakin?' : 'Hapus'}</button></div></div>`;
+    if(editingSession && editingSession.kind==='profile' && editingSession.i===i){
+      return `<div class="sess-row" data-editing="1"><div class="row sess-row-main"><div class="sess-edit-row"><input id="sess-edit-input" class="profile-input sess-edit-input" type="text" value="${esc(name)}"><button onclick="swipeSave('profile',${i})">✓</button><button onclick="swipeCancel()">✕</button></div></div></div>`;
+    }
+    return `<div class="sess-row"><div class="row sess-row-main"><div><div class="t">${esc(name)}</div><div class="s">${n} solve</div></div><div><button onclick="selectSession(${i})" ${isCur?'disabled':''}>${isCur?'Aktif':'Pilih'}</button><button class="danger" onclick="deleteSession(${i})">${confirmDeleteSession===i ? 'Yakin?' : 'Hapus'}</button></div></div><div class="sess-row-actions"><button class="sess-act edit" onclick="swipeEdit('profile',${i})" aria-label="Edit nama sesi">✎</button><button class="sess-act del${confirmDeleteSession===i ? ' confirm' : ''}" onclick="swipeDel('profile',${i})" aria-label="Hapus sesi">${confirmDeleteSession===i ? 'Yakin?' : '🗑'}</button></div></div>`;
   }).join('');
 }
 window.selectSession = (i)=>{
@@ -713,7 +777,10 @@ function renderSessionModal(){
   el.innerHTML = list.map((name,i)=>{
     const n = solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===name).length;
     const isCur = name===cur;
-    return `<div class="row" onclick="pickSession(${i})"><div><div class="t">${esc(name)}</div><div class="s">${n} solve</div></div><div>${isCur?'<span class="badge-aktif">Aktif ✓</span>':'<span class="pick-hint">Pilih ›</span>'}</div></div>`;
+    if(editingSession && editingSession.kind==='popup' && editingSession.i===i){
+      return `<div class="sess-row" data-editing="1"><div class="row sess-row-main"><div class="sess-edit-row"><input id="sess-edit-input" class="profile-input sess-edit-input" type="text" value="${esc(name)}"><button onclick="swipeSave('popup',${i})">✓</button><button onclick="swipeCancel()">✕</button></div></div></div>`;
+    }
+    return `<div class="sess-row"><div class="row sess-row-main" onclick="pickSession(${i})"><div><div class="t">${esc(name)}</div><div class="s">${n} solve</div></div><div>${isCur?'<span class="badge-aktif">Aktif ✓</span>':'<span class="pick-hint">Pilih ›</span>'}</div></div><div class="sess-row-actions"><button class="sess-act edit" onclick="swipeEdit('popup',${i})" aria-label="Edit nama sesi">✎</button><button class="sess-act del${confirmDeleteSession===i ? ' confirm' : ''}" onclick="swipeDel('popup',${i})" aria-label="Hapus sesi">${confirmDeleteSession===i ? 'Yakin?' : '🗑'}</button></div></div>`;
   }).join('');
 }
 window.pickSession = (i)=>{
@@ -753,6 +820,100 @@ $('session-modal-create')?.addEventListener('click', ()=>{
   list.push(name); currentSession[puzzle] = name; saveSessions(); input.value = '';
   render(); closeSessionModal();
 });
+/* ---------- Swipe sesi: geser baris ke kiri -> pensil (edit nama) +
+   tempat sampah (hapus). Berlaku di daftar sesi Profile dan di popup.
+   Edit nama mengganti nama sesi di semua solve event itu (lokal + cloud),
+   supaya tidak ada solve yang tertinggal dengan nama lama. */
+let editingSession = null;
+function refreshSessionUI(){
+  renderSessions();
+  const m = $('session-modal');
+  if(m && !m.hidden) renderSessionModal();
+}
+function setSessionStatus(kind, msg){
+  if(kind==='popup'){ if($('session-modal-status')) $('session-modal-status').textContent = msg; }
+  else if($('session-status')) $('session-status').textContent = msg;
+}
+window.swipeEdit = (kind, i)=>{
+  editingSession = {kind, i};
+  closeSwipeRows(null);
+  refreshSessionUI();
+  setTimeout(()=>{ const inp = $('sess-edit-input'); if(inp && inp.focus){ inp.focus(); if(inp.select) inp.select(); } }, 60);
+};
+window.swipeCancel = ()=>{ editingSession = null; refreshSessionUI(); };
+window.swipeSave = (kind, i)=>{
+  const input = $('sess-edit-input'); if(!input) return;
+  const list = sessionsFor(puzzle);
+  const old = list[i]; if(!old) return;
+  const name = (input.value || '').trim();
+  if(!name){ setSessionStatus(kind, 'Nama sesi tidak boleh kosong.'); return; }
+  if(name!==old && list.includes(name)){ setSessionStatus(kind, 'Sesi "' + name + '" sudah ada di ' + puzzle + '.'); return; }
+  list[i] = name;
+  if(currentSession[puzzle]===old) currentSession[puzzle] = name;
+  solves.forEach(s=>{ if(s.puzzle===puzzle && sessionOf(s)===old){ s.session = name; cloudSession(s); } });
+  editingSession = null;
+  saveSessions(); save(); refreshSessionUI();
+  setSessionStatus(kind, 'Sesi "' + old + '" diganti jadi "' + name + '".');
+};
+window.swipeDel = (kind, i)=>{
+  const list = sessionsFor(puzzle);
+  const name = list[i]; if(!name) return;
+  if(name===activeSession()){ setSessionStatus(kind, 'Sesi aktif tidak bisa dihapus. Pilih sesi lain dulu, baru hapus sesi ini.'); return; }
+  if(confirmDeleteSession!==i){
+    confirmDeleteSession = i;
+    refreshSessionUI();
+    setTimeout(()=>{ if(confirmDeleteSession===i){ confirmDeleteSession = -1; refreshSessionUI(); } }, 3000);
+    return;
+  }
+  confirmDeleteSession = -1;
+  solves.filter(s=>s.puzzle===puzzle && sessionOf(s)===name).forEach(s=>{ markDeleted(s); cloudDelete(s); });
+  solves = solves.filter(s=>!(s.puzzle===puzzle && sessionOf(s)===name));
+  list.splice(i,1); saveSessions(); save(); refreshSessionUI();
+  setSessionStatus(kind, 'Sesi "' + name + '" (' + puzzle + ') dihapus beserta semua waktunya.');
+};
+let swipeTrack = null;
+function closeSwipeRows(except){
+  document.querySelectorAll('.sess-row.open').forEach(r=>{
+    if(r!==except){ r.classList.remove('open'); const m = r.querySelector('.sess-row-main'); if(m) m.style.transform = ''; }
+  });
+}
+document.addEventListener('pointerdown', e=>{
+  const row = (e.target && e.target.closest) ? e.target.closest('.sess-row') : null;
+  if(!row){ closeSwipeRows(null); swipeTrack = null; return; }
+  closeSwipeRows(row);
+  if(row.dataset.editing) return;
+  swipeTrack = {row, x0:e.clientX, y0:e.clientY, dx:0, moved:false};
+}, {passive:true});
+document.addEventListener('pointermove', e=>{
+  if(!swipeTrack) return;
+  const dx = e.clientX - swipeTrack.x0, dy = e.clientY - swipeTrack.y0;
+  if(!swipeTrack.moved){
+    if(Math.abs(dx) < 10 || Math.abs(dy) > Math.abs(dx)){ if(Math.abs(dy) > Math.abs(dx)) swipeTrack = null; return; }
+    swipeTrack.moved = true;
+  }
+  swipeTrack.dx = dx;
+  const main = swipeTrack.row.querySelector('.sess-row-main');
+  const base = swipeTrack.row.classList.contains('open') ? -96 : 0;
+  const tx = Math.max(-96, Math.min(0, base + dx));
+  if(main) main.style.transform = 'translateX(' + tx + 'px)';
+}, {passive:true});
+function swipeEnd(){
+  if(!swipeTrack) return;
+  const t = swipeTrack; swipeTrack = null;
+  if(!t.moved) return;
+  const main = t.row.querySelector('.sess-row-main');
+  const base = t.row.classList.contains('open') ? -96 : 0;
+  const tx = Math.max(-96, Math.min(0, base + t.dx));
+  if(tx < -48) t.row.classList.add('open'); else t.row.classList.remove('open');
+  if(main) main.style.transform = '';
+  t.row.dataset.swipeSuppressed = '1';
+}
+document.addEventListener('pointerup', swipeEnd, {passive:true});
+document.addEventListener('pointercancel', swipeEnd, {passive:true});
+document.addEventListener('click', e=>{
+  const row = (e.target && e.target.closest) ? e.target.closest('.sess-row') : null;
+  if(row && row.dataset.swipeSuppressed){ delete row.dataset.swipeSuppressed; e.stopPropagation(); e.preventDefault(); }
+}, true);
 /* ---------- Best average + median (port dari CubeTime: Stats +
    StopwatchManager/getBestAverage C++) ----------
    getBestAverage di CubeTime: geser jendela selebar n di seluruh sesi,
