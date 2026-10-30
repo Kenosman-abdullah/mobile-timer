@@ -161,8 +161,9 @@
      yang turun 14px, kartu net tidak digeser, sp1/sp2/sp3 tidak diubah. */
   .stats-card{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:14px}
   .stats-card .cell{padding:8px 6px;text-align:center}
-  .stats-card .cell:nth-child(-n+4){border-bottom:1px solid #f2f2f7}
+  .stats-card .cell:nth-child(-n+6){border-bottom:1px solid #f2f2f7}
   .stats-card .cell:nth-child(odd){border-right:1px solid #f2f2f7}
+  .stats-card .cell.wide{grid-column:1/-1;border-right:none}
   .stats-card .lab{font-size:13px;letter-spacing:.02em;color:#000;font-weight:500}
   .stats-card .val{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
   .hint{text-align:center;color:#aeaeb2;font-size:12px;font-weight:600;margin-top:12px;line-height:1.5}
@@ -223,7 +224,7 @@
   body.dark .profile-input{background:#000;color:#fff;border-color:#2c2c2e}
   body.dark .profile-input::placeholder{color:#8e8e93}
   body.dark .row{border-top-color:#2c2c2e}
-  body.dark .stats-card .cell:nth-child(-n+4){border-bottom-color:#2c2c2e}
+  body.dark .stats-card .cell:nth-child(-n+6){border-bottom-color:#2c2c2e}
   body.dark .stats-card .cell:nth-child(odd){border-right-color:#2c2c2e}
   body.dark .toggle{border-top-color:#2c2c2e}
   body.dark .net-card, body.dark .draw-box{background:#000}
@@ -270,6 +271,7 @@
         <div class="cell"><div class="lab">AO1000</div><div class="val mono" id="st-ao1000">-</div></div>
         <div class="cell"><div class="lab">MEAN</div><div class="val mono" id="st-mean">-</div></div>
         <div class="cell"><div class="lab">WORST</div><div class="val mono" id="st-worst">-</div></div>
+        <div class="cell wide"><div class="lab">BEST</div><div class="val mono" id="st-best">-</div></div>
       </div>
     </div>
   </section>
@@ -962,6 +964,7 @@ function render(){
   $('st-mean').textContent = vals.length ? fmt(vals.reduce((a,b)=>a+b,0)/vals.length) : '-';
   $('st-pb').textContent = vals.length ? fmt(Math.min(...vals)) : '-';
   $('st-worst').textContent = vals.length ? fmt(Math.max(...vals)) : '-';
+  $('st-best').textContent = vals.length ? fmt(Math.min(...vals)) : '-';
   $('st-big').textContent = fmt(aoN(ok, 5));
   $('st-detail').textContent = ok.length + ' solve · sesi ' + activeSession() + ' · ' + puzzle + '. AO1000: ' + fmt(aoN(ok, 1000)) + ' · Worst: ' + (vals.length ? fmt(Math.max(...vals)) : '-') + ' · PB: ' + (vals.length ? fmt(Math.min(...vals)) : '-') + '.';
   if($('best-stats')) $('best-stats').textContent = 'Terbaik: AO5 ' + fmt(bestAO(ok, 5)) + ' · AO12 ' + fmt(bestAO(ok, 12)) + ' · AO100 ' + fmt(bestAO(ok, 100)) + ' · Median ' + fmt(medianOf(vals)) + '.';
